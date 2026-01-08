@@ -7,7 +7,7 @@ use miden_protocol::account::{
 use miden_protocol::asset::FungibleAsset;
 use miden_protocol::note::NoteType;
 use miden_protocol::testing::account_id::{
-    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET, ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE,
+    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET, ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1, ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_2, ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_3, ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE
 };
 use miden_protocol::transaction::OutputNote;
 use miden_protocol::vm::AdviceMap;
@@ -86,9 +86,168 @@ fn create_multisig_account(
     Ok(multisig_account)
 }
 
+/// Create a multisig account with the different faucet_id and asset values
+/// farklı faucet_id ve asset amountlarına sahip şekilde oluştursun
+/// Birden fazla değer için oluştusun, bir sürü faucet_id ve asset_amount alsın.
+/// Şu türden bir kaç tane alabileyim işte asset olarak
+/// let account_id = AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_3).unwrap();
+/// let asset = FungibleAsset::new(account_id, 50).unwrap();
+fn create_multisig_account_with_assets(
+    threshold: u32,
+    public_keys: &[PublicKey],
+    assets: Vec<FungibleAsset>,
+    proc_threshold_map: Vec<(Word, u32)>,
+) -> anyhow::Result<Account> {
+    let approvers: Vec<_> = public_keys.iter().map(|pk| pk.to_commitment().into()).collect();
+
+    let multisig_account = AccountBuilder::new([0; 32])
+        .with_auth_component(Auth::MultisigSpendingLimits {
+            threshold,
+            approvers,
+            proc_threshold_map,
+        })
+        .with_component(BasicWallet)
+        .account_type(AccountType::RegularAccountUpdatableCode)
+        .storage_mode(AccountStorageMode::Public)
+        .with_assets(assets.into_iter().map(|a| a.into()))
+        .build_existing()?;
+
+    Ok(multisig_account)
+}
+
 // ================================================================================================
 // TESTS
 // ================================================================================================
+#[tokio::test]
+async fn test_multisig_spending_limits_send_3_different_assets() -> anyhow::Result<()> {
+    let (_secret_keys, public_keys, authenticators) = setup_keys_and_authenticators(2, 2)?;
+
+    let multisig_starting_faucets = vec![
+        (AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1)?, 10000u64),
+        (AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_2)?, 20000u64),
+        (AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_3)?, 30000u64),
+    ];
+
+    let mut multisig_account = create_multisig_account_with_assets(
+        2,
+        &public_keys,
+        multisig_starting_faucets
+            .iter()
+            .map(|(faucet_id, amount)| FungibleAsset::new(*faucet_id, *amount).unwrap())
+            .collect(),
+        vec![],
+    )?;
+
+    // print multisig_account vault assets
+    for asset in multisig_account.vault().assets() {
+        println!("Multisig account asset: {:?}", asset);
+    }
+
+    let mut mock_chain_builder =
+        MockChainBuilder::with_accounts([multisig_account.clone()]).unwrap();
+
+    let output_note_asset_1 = FungibleAsset::new(
+        AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1)?,
+        100u64,
+    )?;
+
+    let output_note_asset_2 = FungibleAsset::new(
+        AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_2)?,
+        500u64,
+    )?;
+
+    let output_note_asset_3 = FungibleAsset::new(
+        AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_3)?,
+        1000u64,
+    )?;
+
+    let output_note = mock_chain_builder.add_p2id_note(
+        multisig_account.id(),
+        ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE.try_into().unwrap(),
+        &[output_note_asset_1.into(), output_note_asset_2.into(), output_note_asset_3.into()],
+        NoteType::Public,
+    )?;
+
+    // print output note assets
+    for asset in output_note.assets().iter() {
+        println!("Output note asset: {:?}", asset);
+    }
+
+    let multisig_account_interface = AccountInterface::from_account(&multisig_account);
+    let send_note_transaction_script =
+        multisig_account_interface.build_send_notes_script(&[output_note.clone().into()], None)?;
+    
+    let salt = Word::from([Felt::new(1); 4]);
+
+    let mut mock_chain = mock_chain_builder.build()?;
+
+    // Execute transaction without signatures to get tx summary
+    let tx_context_init = mock_chain
+        .build_tx_context(multisig_account.id(), &[], &[])?
+        .extend_expected_output_notes(vec![OutputNote::Full(output_note.clone())])
+        .tx_script(send_note_transaction_script.clone())
+        .auth_args(salt)
+        .build()?;
+
+    let tx_summary = match tx_context_init.execute().await.unwrap_err() {
+        TransactionExecutorError::Unauthorized(tx_effects) => tx_effects,
+        error => panic!("expected abort with tx effects: {error:?}"),
+    };
+
+    // Get signatures from both approvers
+    let msg = tx_summary.as_ref().to_commitment();
+    let tx_summary = SigningInputs::TransactionSummary(tx_summary);
+
+    let sig_1 = authenticators[0]
+        .get_signature(public_keys[0].to_commitment(), &tx_summary)
+        .await?;
+    let sig_2 = authenticators[1]
+        .get_signature(public_keys[1].to_commitment(), &tx_summary)
+        .await?;
+
+    let result = mock_chain
+        .build_tx_context(multisig_account.id(), &[], &[])?
+        .extend_expected_output_notes(vec![OutputNote::Full(output_note)])
+        .add_signature(public_keys[0].to_commitment(), msg, sig_1)
+        .add_signature(public_keys[1].to_commitment(), msg, sig_2)
+        .auth_args(salt)
+        .tx_script(send_note_transaction_script)
+        .build()?
+        .execute()
+        .await;
+
+    multisig_account.apply_delta(result.as_ref().unwrap().account_delta())?;
+    mock_chain.add_pending_executed_transaction(&result.unwrap())?;
+    mock_chain.prove_next_block()?;
+
+    // assert_eq for each asset
+    let expected_balance_1 = multisig_starting_faucets[0].1 - output_note_asset_1.amount();
+    let expected_balance_2 = multisig_starting_faucets[1].1 - output_note_asset_2.amount();
+    let expected_balance_3 = multisig_starting_faucets[2].1 - output_note_asset_3.amount();
+
+    assert_eq!(
+        multisig_account
+            .vault()
+            .get_balance(AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1)?)?,
+        expected_balance_1
+    );
+
+    assert_eq!(
+        multisig_account
+            .vault()
+            .get_balance(AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_2)?)?,
+        expected_balance_2
+    );
+
+    assert_eq!(
+        multisig_account
+            .vault()
+            .get_balance(AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_3)?)?,
+        expected_balance_3
+    );
+
+    Ok(())
+}
 
 /// Tests basic 2-of-2 multisig functionality with note creation.
 ///
@@ -1074,3 +1233,4 @@ async fn test_multisig_spending_limits_proc_threshold_overrides() -> anyhow::Res
 
     Ok(())
 }
+
