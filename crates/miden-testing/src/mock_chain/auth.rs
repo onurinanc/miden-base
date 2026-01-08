@@ -7,20 +7,10 @@ use miden_protocol::account::AccountComponent;
 use miden_protocol::account::auth::{AuthSecretKey, PublicKeyCommitment};
 use miden_protocol::testing::noop_auth_component::NoopAuthComponent;
 use miden_standards::account::auth::{
-    AuthEcdsaK256Keccak,
-    AuthEcdsaK256KeccakAcl,
-    AuthEcdsaK256KeccakAclConfig,
-    AuthEcdsaK256KeccakMultisig,
-    AuthEcdsaK256KeccakMultisigConfig,
-    AuthRpoFalcon512,
-    AuthRpoFalcon512Acl,
-    AuthRpoFalcon512AclConfig,
-    AuthRpoFalcon512Multisig,
-    AuthRpoFalcon512MultisigConfig,
+    AuthEcdsaK256Keccak, AuthEcdsaK256KeccakAcl, AuthEcdsaK256KeccakAclConfig, AuthEcdsaK256KeccakMultisig, AuthEcdsaK256KeccakMultisigConfig, AuthMultisigSpendingLimits, AuthMultisigSpendingLimitsConfig, AuthRpoFalcon512, AuthRpoFalcon512Acl, AuthRpoFalcon512AclConfig, AuthRpoFalcon512Multisig, AuthRpoFalcon512MultisigConfig
 };
 use miden_standards::testing::account_component::{
-    ConditionalAuthComponent,
-    IncrNonceAuthComponent,
+    ConditionalAuthComponent, IncrNonceAuthComponent,
 };
 use miden_tx::auth::BasicAuthenticator;
 use rand::SeedableRng;
@@ -55,6 +45,13 @@ pub enum Auth {
 
     /// Multisig
     Multisig {
+        threshold: u32,
+        approvers: Vec<Word>,
+        proc_threshold_map: Vec<(Word, u32)>,
+    },
+
+    /// Multisig with Spending Limits
+    MultisigSpendingLimits {
         threshold: u32,
         approvers: Vec<Word>,
         proc_threshold_map: Vec<(Word, u32)>,
@@ -130,6 +127,19 @@ impl Auth {
                     .and_then(|cfg| cfg.with_proc_thresholds(proc_threshold_map.clone()))
                     .expect("invalid multisig config");
                 let component = AuthRpoFalcon512Multisig::new(config)
+                    .expect("multisig component creation failed")
+                    .into();
+
+                (component, None)
+            },
+            Auth::MultisigSpendingLimits { threshold, approvers, proc_threshold_map } => {
+                let pub_keys: Vec<_> =
+                    approvers.iter().map(|word| PublicKeyCommitment::from(*word)).collect();
+
+                let config = AuthMultisigSpendingLimitsConfig::new(pub_keys, *threshold)
+                    .and_then(|cfg| cfg.with_proc_thresholds(proc_threshold_map.clone()))
+                    .expect("invalid multisig config");
+                let component = AuthMultisigSpendingLimits::new(config)
                     .expect("multisig component creation failed")
                     .into();
 

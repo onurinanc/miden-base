@@ -33,6 +33,13 @@ pub enum AuthScheme {
         threshold: u32,
         pub_keys: Vec<PublicKeyCommitment>,
     },
+    /// A multi-signature authentication scheme with spending limits.
+    ///
+    /// Requires a threshold number of signatures from the provided public keys.
+    MultisigSpendingLimits {
+        threshold: u32,
+        pub_keys: Vec<PublicKeyCommitment>,
+    },
     /// A non-standard authentication scheme.
     Unknown,
 }
@@ -48,6 +55,7 @@ impl AuthScheme {
             AuthScheme::EcdsaK256KeccakMultisig { pub_keys, .. } => pub_keys.clone(),
             AuthScheme::RpoFalcon512 { pub_key } => vec![*pub_key],
             AuthScheme::RpoFalcon512Multisig { pub_keys, .. } => pub_keys.clone(),
+            AuthScheme::MultisigSpendingLimits { pub_keys, .. } => pub_keys.clone(),
             AuthScheme::Unknown => Vec::new(),
         }
     }

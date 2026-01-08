@@ -13,15 +13,8 @@ use miden_protocol::crypto::merkle::smt::SmtProofError;
 use miden_protocol::note::{NoteId, NoteMetadata};
 use miden_protocol::transaction::TransactionSummary;
 use miden_protocol::{
-    AccountDeltaError,
-    AccountError,
-    AssetError,
-    Felt,
-    NoteError,
-    ProvenTransactionError,
-    TransactionInputError,
-    TransactionOutputError,
-    Word,
+    AccountDeltaError, AccountError, AssetError, Felt, NoteError, ProvenTransactionError,
+    TransactionInputError, TransactionOutputError, Word,
 };
 use miden_verifier::VerificationError;
 use thiserror::Error;

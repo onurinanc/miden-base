@@ -8,12 +8,8 @@ use miden_protocol::{Felt, FieldElement, Word};
 
 use crate::AuthScheme;
 use crate::account::auth::{
-    AuthEcdsaK256Keccak,
-    AuthEcdsaK256KeccakAcl,
-    AuthEcdsaK256KeccakMultisig,
-    AuthRpoFalcon512,
-    AuthRpoFalcon512Acl,
-    AuthRpoFalcon512Multisig,
+    AuthEcdsaK256Keccak, AuthEcdsaK256KeccakAcl, AuthEcdsaK256KeccakMultisig,
+    AuthMultisigSpendingLimits, AuthRpoFalcon512, AuthRpoFalcon512Acl, AuthRpoFalcon512Multisig,
 };
 use crate::account::interface::AccountInterfaceError;
 
@@ -49,6 +45,9 @@ pub enum AccountComponentInterface {
     /// Exposes procedures from the
     /// [`AuthRpoFalcon512Multisig`][crate::account::auth::AuthRpoFalcon512Multisig] module.
     AuthRpoFalcon512Multisig,
+    /// Exposes procedures from the
+    /// [`AuthMultisigSpendingLimits`][crate::account::auth::AuthMultisigSpendingLimits] module.
+    AuthMultisigSpendingLimits,
     /// Exposes procedures from the [`NoAuth`][crate::account::auth::NoAuth] module.
     ///
     /// This authentication scheme provides no cryptographic authentication and only increments
@@ -86,7 +85,9 @@ impl AccountComponentInterface {
             AccountComponentInterface::AuthRpoFalcon512Multisig => {
                 "RPO Falcon512 Multisig".to_string()
             },
-
+            AccountComponentInterface::AuthMultisigSpendingLimits => {
+                "Multisig Spending Limits".to_string()
+            },
             AccountComponentInterface::AuthNoAuth => "No Auth".to_string(),
             AccountComponentInterface::Custom(proc_root_vec) => {
                 let result = proc_root_vec
@@ -111,6 +112,7 @@ impl AccountComponentInterface {
                 | AccountComponentInterface::AuthRpoFalcon512
                 | AccountComponentInterface::AuthRpoFalcon512Acl
                 | AccountComponentInterface::AuthRpoFalcon512Multisig
+                | AccountComponentInterface::AuthMultisigSpendingLimits
                 | AccountComponentInterface::AuthNoAuth
         )
     }
@@ -166,6 +168,13 @@ impl AccountComponentInterface {
                     storage,
                     AuthRpoFalcon512Multisig::threshold_config_slot(),
                     AuthRpoFalcon512Multisig::approver_public_keys_slot(),
+                )]
+            },
+            AccountComponentInterface::AuthMultisigSpendingLimits => {
+                vec![extract_multisig_auth_scheme(
+                    storage,
+                    AuthMultisigSpendingLimits::procedure_thresholds_slot(),
+                    AuthMultisigSpendingLimits::approver_public_keys_slot(),
                 )]
             },
             AccountComponentInterface::AuthNoAuth => vec![AuthScheme::NoAuth],

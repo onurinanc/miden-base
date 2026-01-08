@@ -1,23 +1,14 @@
 use alloc::string::String;
 
 use miden_protocol::account::{
-    Account,
-    AccountBuilder,
-    AccountComponent,
-    AccountStorageMode,
-    AccountType,
+    Account, AccountBuilder, AccountComponent, AccountStorageMode, AccountType,
 };
 use miden_protocol::{AccountError, Word};
 use thiserror::Error;
 
 use super::AuthScheme;
 use crate::account::auth::{
-    AuthEcdsaK256Keccak,
-    AuthEcdsaK256KeccakMultisig,
-    AuthEcdsaK256KeccakMultisigConfig,
-    AuthRpoFalcon512,
-    AuthRpoFalcon512Multisig,
-    AuthRpoFalcon512MultisigConfig,
+    AuthEcdsaK256Keccak, AuthEcdsaK256KeccakMultisig, AuthEcdsaK256KeccakMultisigConfig, AuthMultisigSpendingLimits, AuthMultisigSpendingLimitsConfig, AuthRpoFalcon512, AuthRpoFalcon512Multisig, AuthRpoFalcon512MultisigConfig
 };
 use crate::account::components::basic_wallet_library;
 use crate::procedure_digest;
@@ -139,6 +130,16 @@ pub fn create_basic_wallet(
                 })
                 .map_err(BasicWalletError::AccountError)?;
             AuthRpoFalcon512Multisig::new(config)
+                .map_err(BasicWalletError::AccountError)?
+                .into()
+        },
+        AuthScheme::MultisigSpendingLimits { threshold, pub_keys } => {
+            let config = AuthMultisigSpendingLimitsConfig::new(pub_keys, threshold)
+                .and_then(|cfg| {
+                    cfg.with_proc_thresholds(vec![(BasicWallet::receive_asset_digest(), 1)])
+                })
+                .map_err(BasicWalletError::AccountError)?;
+            AuthMultisigSpendingLimits::new(config)
                 .map_err(BasicWalletError::AccountError)?
                 .into()
         },

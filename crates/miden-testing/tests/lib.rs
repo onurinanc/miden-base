@@ -14,10 +14,7 @@ use miden_protocol::transaction::{ExecutedTransaction, ProvenTransaction};
 use miden_protocol::{Word, ZERO};
 use miden_standards::code_builder::CodeBuilder;
 use miden_tx::{
-    LocalTransactionProver,
-    ProvingOptions,
-    TransactionVerifier,
-    TransactionVerifierError,
+    LocalTransactionProver, ProvingOptions, TransactionVerifier, TransactionVerifierError,
 };
 
 // HELPER FUNCTIONS

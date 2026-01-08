@@ -5,15 +5,8 @@ use miden_protocol::asset::Asset;
 use miden_protocol::block::BlockNumber;
 use miden_protocol::crypto::rand::FeltRng;
 use miden_protocol::note::{
-    Note,
-    NoteAssets,
-    NoteDetails,
-    NoteExecutionHint,
-    NoteInputs,
-    NoteMetadata,
-    NoteRecipient,
-    NoteTag,
-    NoteType,
+    Note, NoteAssets, NoteDetails, NoteExecutionHint, NoteInputs, NoteMetadata, NoteRecipient,
+    NoteTag, NoteType,
 };
 use miden_protocol::{Felt, NoteError, Word};
 use utils::build_swap_tag;

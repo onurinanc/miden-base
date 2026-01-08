@@ -5,33 +5,19 @@ use core::slice;
 
 use miden_processor::crypto::RpoRandomCoin;
 use miden_protocol::account::{
-    Account,
-    AccountId,
-    AccountIdVersion,
-    AccountStorageMode,
-    AccountType,
+    Account, AccountId, AccountIdVersion, AccountStorageMode, AccountType,
 };
 use miden_protocol::assembly::DefaultSourceManager;
 use miden_protocol::asset::{Asset, FungibleAsset};
 use miden_protocol::note::{
-    Note,
-    NoteAssets,
-    NoteExecutionHint,
-    NoteExecutionMode,
-    NoteId,
-    NoteInputs,
-    NoteMetadata,
-    NoteRecipient,
-    NoteTag,
-    NoteType,
+    Note, NoteAssets, NoteExecutionHint, NoteExecutionMode, NoteId, NoteInputs, NoteMetadata,
+    NoteRecipient, NoteTag, NoteType,
 };
 use miden_protocol::testing::account_id::ACCOUNT_ID_PRIVATE_SENDER;
 use miden_protocol::transaction::{ExecutedTransaction, OutputNote};
 use miden_protocol::{Felt, Word};
 use miden_standards::account::faucets::{
-    BasicFungibleFaucet,
-    FungibleFaucetExt,
-    NetworkFungibleFaucet,
+    BasicFungibleFaucet, FungibleFaucetExt, NetworkFungibleFaucet,
 };
 use miden_standards::code_builder::CodeBuilder;
 use miden_standards::errors::standards::ERR_FUNGIBLE_ASSET_DISTRIBUTE_WOULD_CAUSE_MAX_SUPPLY_TO_BE_EXCEEDED;

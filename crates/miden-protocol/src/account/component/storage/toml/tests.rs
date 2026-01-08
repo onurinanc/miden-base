@@ -5,13 +5,8 @@ use miden_core::{Felt, FieldElement, Word};
 
 use crate::account::component::toml::init_storage_data::InitStorageDataError;
 use crate::account::component::{
-    AccountComponentMetadata,
-    InitStorageData,
-    SchemaTypeId,
-    StorageSlotSchema,
-    StorageValueName,
-    WordSchema,
-    WordValue,
+    AccountComponentMetadata, InitStorageData, SchemaTypeId, StorageSlotSchema, StorageValueName,
+    WordSchema, WordValue,
 };
 use crate::account::{AccountStorage, StorageSlotContent, StorageSlotName};
 use crate::asset::TokenSymbol;

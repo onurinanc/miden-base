@@ -1,36 +1,23 @@
 use alloc::sync::Arc;
 
 use miden_protocol::account::{
-    Account,
-    AccountBuilder,
-    AccountComponent,
-    AccountId,
-    AccountStorage,
-    AccountType,
-    StorageMap,
+    Account, AccountBuilder, AccountComponent, AccountId, AccountStorage, AccountType, StorageMap,
 };
 use miden_protocol::assembly::DefaultSourceManager;
 use miden_protocol::asset::{FungibleAsset, NonFungibleAsset};
 use miden_protocol::errors::tx_kernel::{
     ERR_FAUCET_NEW_TOTAL_SUPPLY_WOULD_EXCEED_MAX_ASSET_AMOUNT,
-    ERR_FAUCET_NON_FUNGIBLE_ASSET_ALREADY_ISSUED,
-    ERR_FAUCET_NON_FUNGIBLE_ASSET_TO_BURN_NOT_FOUND,
-    ERR_FUNGIBLE_ASSET_FAUCET_IS_NOT_ORIGIN,
-    ERR_NON_FUNGIBLE_ASSET_FAUCET_IS_NOT_ORIGIN,
+    ERR_FAUCET_NON_FUNGIBLE_ASSET_ALREADY_ISSUED, ERR_FAUCET_NON_FUNGIBLE_ASSET_TO_BURN_NOT_FOUND,
+    ERR_FUNGIBLE_ASSET_FAUCET_IS_NOT_ORIGIN, ERR_NON_FUNGIBLE_ASSET_FAUCET_IS_NOT_ORIGIN,
     ERR_VAULT_FUNGIBLE_ASSET_AMOUNT_LESS_THAN_AMOUNT_TO_WITHDRAW,
 };
 use miden_protocol::testing::account_id::{
-    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET,
-    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1,
-    ACCOUNT_ID_PUBLIC_NON_FUNGIBLE_FAUCET_1,
-    ACCOUNT_ID_SENDER,
+    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET, ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1,
+    ACCOUNT_ID_PUBLIC_NON_FUNGIBLE_FAUCET_1, ACCOUNT_ID_SENDER,
 };
 use miden_protocol::testing::constants::{
-    CONSUMED_ASSET_1_AMOUNT,
-    FUNGIBLE_ASSET_AMOUNT,
-    FUNGIBLE_FAUCET_INITIAL_BALANCE,
-    NON_FUNGIBLE_ASSET_DATA,
-    NON_FUNGIBLE_ASSET_DATA_2,
+    CONSUMED_ASSET_1_AMOUNT, FUNGIBLE_ASSET_AMOUNT, FUNGIBLE_FAUCET_INITIAL_BALANCE,
+    NON_FUNGIBLE_ASSET_DATA, NON_FUNGIBLE_ASSET_DATA_2,
 };
 use miden_protocol::testing::noop_auth_component::NoopAuthComponent;
 use miden_protocol::{Felt, Word};

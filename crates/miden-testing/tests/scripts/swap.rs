@@ -2,18 +2,10 @@ use anyhow::Context;
 use miden_protocol::account::{Account, AccountId, AccountStorageMode, AccountType};
 use miden_protocol::asset::{Asset, FungibleAsset, NonFungibleAsset};
 use miden_protocol::note::{
-    Note,
-    NoteAssets,
-    NoteDetails,
-    NoteExecutionHint,
-    NoteMetadata,
-    NoteTag,
-    NoteType,
+    Note, NoteAssets, NoteDetails, NoteExecutionHint, NoteMetadata, NoteTag, NoteType,
 };
 use miden_protocol::testing::account_id::{
-    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET,
-    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1,
-    AccountIdBuilder,
+    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET, ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1, AccountIdBuilder,
 };
 use miden_protocol::transaction::OutputNote;
 use miden_protocol::{Felt, NoteError, Word};

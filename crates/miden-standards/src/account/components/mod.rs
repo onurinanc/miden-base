@@ -80,6 +80,16 @@ static RPO_FALCON_512_MULTISIG_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
     Library::read_from_bytes(bytes).expect("Shipped Multisig Rpo Falcon 512 library is well-formed")
 });
 
+// Initialize the Multisig Multisig Spending Limits library only once.
+static MULTISIG_SPENDING_LIMITS_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
+    let bytes = include_bytes!(concat!(
+        env!("OUT_DIR"),
+        "/assets/account_components/auth/multisig_spending_limits.masl"
+    ));
+    Library::read_from_bytes(bytes)
+        .expect("Shipped Multisig Spending Limits library is well-formed")
+});
+
 // Initialize the NoAuth library only once.
 static NO_AUTH_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
     let bytes =
@@ -158,6 +168,11 @@ pub fn rpo_falcon_512_multisig_library() -> Library {
     RPO_FALCON_512_MULTISIG_LIBRARY.clone()
 }
 
+/// Returns the Multisig Spending Limits Library.
+pub fn multisig_spending_limits_library() -> Library {
+    MULTISIG_SPENDING_LIMITS_LIBRARY.clone()
+}
+
 // WELL KNOWN COMPONENTS
 // ================================================================================================
 
@@ -172,6 +187,7 @@ pub enum WellKnownComponent {
     AuthRpoFalcon512,
     AuthRpoFalcon512Acl,
     AuthRpoFalcon512Multisig,
+    AuthMultisigSpendingLimits,
     AuthNoAuth,
 }
 
@@ -188,6 +204,7 @@ impl WellKnownComponent {
             Self::AuthRpoFalcon512 => RPO_FALCON_512_LIBRARY.as_ref(),
             Self::AuthRpoFalcon512Acl => RPO_FALCON_512_ACL_LIBRARY.as_ref(),
             Self::AuthRpoFalcon512Multisig => RPO_FALCON_512_MULTISIG_LIBRARY.as_ref(),
+            Self::AuthMultisigSpendingLimits => MULTISIG_SPENDING_LIMITS_LIBRARY.as_ref(),
             Self::AuthNoAuth => NO_AUTH_LIBRARY.as_ref(),
         };
 
@@ -247,6 +264,8 @@ impl WellKnownComponent {
                 },
                 Self::AuthRpoFalcon512Multisig => component_interface_vec
                     .push(AccountComponentInterface::AuthRpoFalcon512Multisig),
+                Self::AuthMultisigSpendingLimits => component_interface_vec
+                    .push(AccountComponentInterface::AuthMultisigSpendingLimits),
                 Self::AuthNoAuth => {
                     component_interface_vec.push(AccountComponentInterface::AuthNoAuth)
                 },
@@ -270,6 +289,7 @@ impl WellKnownComponent {
         Self::AuthRpoFalcon512.extract_component(procedures_set, component_interface_vec);
         Self::AuthRpoFalcon512Acl.extract_component(procedures_set, component_interface_vec);
         Self::AuthRpoFalcon512Multisig.extract_component(procedures_set, component_interface_vec);
+        Self::AuthMultisigSpendingLimits.extract_component(procedures_set, component_interface_vec);
         Self::AuthNoAuth.extract_component(procedures_set, component_interface_vec);
     }
 }

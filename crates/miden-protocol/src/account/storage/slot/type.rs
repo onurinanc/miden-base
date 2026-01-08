@@ -2,11 +2,7 @@ use alloc::string::ToString;
 use core::fmt::Display;
 
 use crate::utils::serde::{
-    ByteReader,
-    ByteWriter,
-    Deserializable,
-    DeserializationError,
-    Serializable,
+    ByteReader, ByteWriter, Deserializable, DeserializationError, Serializable,
 };
 use crate::{AccountError, Felt};
 

@@ -9,11 +9,7 @@ use crate::crypto::SequentialCommit;
 use crate::crypto::merkle::InnerNodeInfo;
 use crate::crypto::merkle::smt::SmtProof;
 use crate::transaction::{
-    AccountInputs,
-    InputNote,
-    PartialBlockchain,
-    TransactionInputs,
-    TransactionKernel,
+    AccountInputs, InputNote, PartialBlockchain, TransactionInputs, TransactionKernel,
 };
 use crate::vm::AdviceInputs;
 use crate::{EMPTY_WORD, Felt, FieldElement, Word, ZERO};

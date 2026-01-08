@@ -2,15 +2,8 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 
 use super::{
-    AccountError,
-    AccountStorageDelta,
-    ByteReader,
-    ByteWriter,
-    Deserializable,
-    DeserializationError,
-    Felt,
-    Serializable,
-    Word,
+    AccountError, AccountStorageDelta, ByteReader, ByteWriter, Deserializable,
+    DeserializationError, Felt, Serializable, Word,
 };
 use crate::account::{AccountComponent, AccountType};
 use crate::crypto::SequentialCommit;

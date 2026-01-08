@@ -1,12 +1,6 @@
 use miden_protocol::account::{
-    Account,
-    AccountBuilder,
-    AccountComponent,
-    AccountStorage,
-    AccountStorageMode,
-    AccountType,
-    StorageSlot,
-    StorageSlotName,
+    Account, AccountBuilder, AccountComponent, AccountStorage, AccountStorageMode, AccountType,
+    StorageSlot, StorageSlotName,
 };
 use miden_protocol::asset::{FungibleAsset, TokenSymbol};
 use miden_protocol::{Felt, FieldElement, Word};
@@ -14,9 +8,7 @@ use miden_protocol::{Felt, FieldElement, Word};
 use super::FungibleFaucetError;
 use crate::account::AuthScheme;
 use crate::account::auth::{
-    AuthEcdsaK256KeccakAcl,
-    AuthEcdsaK256KeccakAclConfig,
-    AuthRpoFalcon512Acl,
+    AuthEcdsaK256KeccakAcl, AuthEcdsaK256KeccakAclConfig, AuthRpoFalcon512Acl,
     AuthRpoFalcon512AclConfig,
 };
 use crate::account::components::basic_fungible_faucet_library;
@@ -280,6 +272,12 @@ pub fn create_basic_fungible_faucet(
                 "basic fungible faucets do not support multisig authentication".into(),
             ));
         },
+        AuthScheme::MultisigSpendingLimits { threshold: _, pub_keys: _ } => {
+            return Err(FungibleFaucetError::UnsupportedAuthScheme(
+                "basic fungible faucets do not support multisig spending limits authentication"
+                    .into(),
+            ));
+        },
         AuthScheme::Unknown => {
             return Err(FungibleFaucetError::UnsupportedAuthScheme(
                 "basic fungible faucets cannot be created with Unknown authentication scheme"
@@ -316,15 +314,8 @@ mod tests {
     use miden_protocol::{FieldElement, ONE, Word};
 
     use super::{
-        AccountBuilder,
-        AccountStorageMode,
-        AccountType,
-        AuthScheme,
-        BasicFungibleFaucet,
-        Felt,
-        FungibleFaucetError,
-        TokenSymbol,
-        create_basic_fungible_faucet,
+        AccountBuilder, AccountStorageMode, AccountType, AuthScheme, BasicFungibleFaucet, Felt,
+        FungibleFaucetError, TokenSymbol, create_basic_fungible_faucet,
     };
     use crate::account::auth::{AuthRpoFalcon512, AuthRpoFalcon512Acl};
     use crate::account::wallets::BasicWallet;

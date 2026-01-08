@@ -9,8 +9,7 @@ pub use ecdsa_k256_keccak_acl::{AuthEcdsaK256KeccakAcl, AuthEcdsaK256KeccakAclCo
 
 mod ecdsa_k256_keccak_multisig;
 pub use ecdsa_k256_keccak_multisig::{
-    AuthEcdsaK256KeccakMultisig,
-    AuthEcdsaK256KeccakMultisigConfig,
+    AuthEcdsaK256KeccakMultisig, AuthEcdsaK256KeccakMultisigConfig,
 };
 
 mod rpo_falcon_512;
@@ -21,3 +20,6 @@ pub use rpo_falcon_512_acl::{AuthRpoFalcon512Acl, AuthRpoFalcon512AclConfig};
 
 mod rpo_falcon_512_multisig;
 pub use rpo_falcon_512_multisig::{AuthRpoFalcon512Multisig, AuthRpoFalcon512MultisigConfig};
+
+mod multisig_spending_limits;
+pub use multisig_spending_limits::{AuthMultisigSpendingLimits, AuthMultisigSpendingLimitsConfig};

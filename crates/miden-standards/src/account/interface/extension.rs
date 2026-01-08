@@ -10,22 +10,13 @@ use miden_protocol::note::{Note, NoteScript};
 
 use crate::AuthScheme;
 use crate::account::components::{
-    WellKnownComponent,
-    basic_fungible_faucet_library,
-    basic_wallet_library,
-    ecdsa_k256_keccak_acl_library,
-    ecdsa_k256_keccak_library,
-    ecdsa_k256_keccak_multisig_library,
-    network_fungible_faucet_library,
-    no_auth_library,
-    rpo_falcon_512_acl_library,
-    rpo_falcon_512_library,
-    rpo_falcon_512_multisig_library,
+    WellKnownComponent, basic_fungible_faucet_library, basic_wallet_library,
+    ecdsa_k256_keccak_acl_library, ecdsa_k256_keccak_library, ecdsa_k256_keccak_multisig_library,
+    multisig_spending_limits_library, network_fungible_faucet_library, no_auth_library,
+    rpo_falcon_512_acl_library, rpo_falcon_512_library, rpo_falcon_512_multisig_library,
 };
 use crate::account::interface::{
-    AccountComponentInterface,
-    AccountInterface,
-    NoteAccountCompatibility,
+    AccountComponentInterface, AccountInterface, NoteAccountCompatibility,
 };
 use crate::note::WellKnownNote;
 
@@ -127,6 +118,11 @@ impl AccountInterfaceExt for AccountInterface {
                 AccountComponentInterface::AuthRpoFalcon512Multisig => {
                     component_proc_digests.extend(
                         rpo_falcon_512_multisig_library().mast_forest().procedure_digests(),
+                    );
+                },
+                AccountComponentInterface::AuthMultisigSpendingLimits => {
+                    component_proc_digests.extend(
+                        multisig_spending_limits_library().mast_forest().procedure_digests(),
                     );
                 },
                 AccountComponentInterface::AuthNoAuth => {

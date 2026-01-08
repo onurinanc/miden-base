@@ -8,37 +8,23 @@ use miden_protocol::account::{Account, AccountId};
 use miden_protocol::asset::{Asset, FungibleAsset};
 use miden_protocol::crypto::rand::FeltRng;
 use miden_protocol::note::{
-    Note,
-    NoteAssets,
-    NoteExecutionHint,
-    NoteInputs,
-    NoteMetadata,
-    NoteRecipient,
-    NoteTag,
-    NoteType,
+    Note, NoteAssets, NoteExecutionHint, NoteInputs, NoteMetadata, NoteRecipient, NoteTag, NoteType,
 };
 use miden_protocol::testing::account_id::{
     ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_IMMUTABLE_CODE,
     ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_IMMUTABLE_CODE_2,
-    ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE,
-    ACCOUNT_ID_SENDER,
+    ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE, ACCOUNT_ID_SENDER,
 };
 use miden_protocol::transaction::{InputNote, OutputNote, TransactionKernel};
 use miden_protocol::{Felt, StarkField, Word, ZERO};
 use miden_standards::note::{
-    NoteConsumptionStatus,
-    WellKnownNote,
-    create_p2id_note,
-    create_p2ide_note,
+    NoteConsumptionStatus, WellKnownNote, create_p2id_note, create_p2ide_note,
 };
 use miden_standards::testing::mock_account::MockAccountExt;
 use miden_standards::testing::note::NoteBuilder;
 use miden_tx::auth::UnreachableAuth;
 use miden_tx::{
-    FailedNote,
-    NoteConsumptionChecker,
-    NoteConsumptionInfo,
-    TransactionExecutor,
+    FailedNote, NoteConsumptionChecker, NoteConsumptionInfo, TransactionExecutor,
     TransactionExecutorError,
 };
 use rand::{Rng, SeedableRng};

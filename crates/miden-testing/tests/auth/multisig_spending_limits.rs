@@ -12,8 +12,8 @@ use miden_protocol::testing::account_id::{
 use miden_protocol::transaction::OutputNote;
 use miden_protocol::vm::AdviceMap;
 use miden_protocol::{Felt, Hasher, Word};
-use miden_standards::account::auth::AuthRpoFalcon512Multisig;
-use miden_standards::account::components::rpo_falcon_512_multisig_library;
+use miden_standards::account::auth::AuthMultisigSpendingLimits;
+use miden_standards::account::components::multisig_spending_limits_library;
 use miden_standards::account::interface::{AccountInterface, AccountInterfaceExt};
 use miden_standards::account::wallets::BasicWallet;
 use miden_standards::code_builder::CodeBuilder;
@@ -46,7 +46,7 @@ fn setup_keys_and_authenticators(
     let mut authenticators = Vec::new();
 
     for _ in 0..num_approvers {
-        let sec_key = AuthSecretKey::new_falcon512_rpo_with_rng(&mut rng);
+        let sec_key = AuthSecretKey::new_ecdsa_k256_keccak_with_rng(&mut rng);
         let pub_key = sec_key.public_key();
 
         secret_keys.push(sec_key);
@@ -72,7 +72,11 @@ fn create_multisig_account(
     let approvers: Vec<_> = public_keys.iter().map(|pk| pk.to_commitment().into()).collect();
 
     let multisig_account = AccountBuilder::new([0; 32])
-        .with_auth_component(Auth::Multisig { threshold, approvers, proc_threshold_map })
+        .with_auth_component(Auth::MultisigSpendingLimits {
+            threshold,
+            approvers,
+            proc_threshold_map,
+        })
         .with_component(BasicWallet)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Public)
@@ -96,7 +100,7 @@ fn create_multisig_account(
 /// - 2 Approvers (multisig signers)
 /// - 1 Multisig Contract
 #[tokio::test]
-async fn test_multisig_2_of_2_with_note_creation() -> anyhow::Result<()> {
+async fn test_multisig_spending_limits_2_of_2_with_note_creation() -> anyhow::Result<()> {
     // Setup keys and authenticators
     let (_secret_keys, public_keys, authenticators) = setup_keys_and_authenticators(2, 2)?;
 
@@ -183,7 +187,7 @@ async fn test_multisig_2_of_2_with_note_creation() -> anyhow::Result<()> {
 ///
 /// **Tested combinations:** (0,1), (0,2), (0,3), (1,2), (1,3), (2,3)
 #[tokio::test]
-async fn test_multisig_2_of_4_all_signer_combinations() -> anyhow::Result<()> {
+async fn test_multisig_spending_limits_2_of_4_all_signer_combinations() -> anyhow::Result<()> {
     // Setup keys and authenticators (4 approvers, all 4 can sign)
     let (_secret_keys, public_keys, authenticators) = setup_keys_and_authenticators(4, 4)?;
 
@@ -261,7 +265,7 @@ async fn test_multisig_2_of_4_all_signer_combinations() -> anyhow::Result<()> {
 /// - 3 Approvers (2 signers required)
 /// - 1 Multisig Contract
 #[tokio::test]
-async fn test_multisig_replay_protection() -> anyhow::Result<()> {
+async fn test_multisig_spending_limits_replay_protection() -> anyhow::Result<()> {
     // Setup keys and authenticators (3 approvers, but only 2 signers)
     let (_secret_keys, public_keys, authenticators) = setup_keys_and_authenticators(3, 2)?;
 
@@ -339,7 +343,7 @@ async fn test_multisig_replay_protection() -> anyhow::Result<()> {
 /// - 1 Multisig Contract
 /// - 1 Transaction Script calling multisig procedures
 #[tokio::test]
-async fn test_multisig_update_signers() -> anyhow::Result<()> {
+async fn test_multisig_spending_limits_update_signers() -> anyhow::Result<()> {
     let (_secret_keys, public_keys, authenticators) = setup_keys_and_authenticators(2, 2)?;
 
     let multisig_account = create_multisig_account(2, &public_keys, 10, vec![])?;
@@ -396,12 +400,12 @@ async fn test_multisig_update_signers() -> anyhow::Result<()> {
     // Create a transaction script that calls the update_signers procedure
     let tx_script_code = "
         begin
-            call.::rpo_falcon_512_multisig::update_signers_and_threshold
+            call.::multisig_spending_limits::update_signers_and_threshold
         end
     ";
 
     let tx_script = CodeBuilder::default()
-        .with_dynamically_linked_library(rpo_falcon_512_multisig_library())?
+        .with_dynamically_linked_library(multisig_spending_limits_library())?
         .compile_tx_script(tx_script_code)?;
 
     let advice_inputs = AdviceInputs {
@@ -466,7 +470,7 @@ async fn test_multisig_update_signers() -> anyhow::Result<()> {
         let storage_key = [Felt::new(i as u64), Felt::new(0), Felt::new(0), Felt::new(0)].into();
         let storage_item = updated_multisig_account
             .storage()
-            .get_map_item(AuthRpoFalcon512Multisig::approver_public_keys_slot(), storage_key)
+            .get_map_item(AuthMultisigSpendingLimits::approver_public_keys_slot(), storage_key)
             .unwrap();
 
         let expected_word: Word = expected_key.to_commitment().into();
@@ -477,7 +481,7 @@ async fn test_multisig_update_signers() -> anyhow::Result<()> {
     // Verify the threshold was updated by checking the config storage slot
     let threshold_config_storage = updated_multisig_account
         .storage()
-        .get_item(AuthRpoFalcon512Multisig::threshold_config_slot())?;
+        .get_item(AuthMultisigSpendingLimits::threshold_config_slot())?;
 
     assert_eq!(
         threshold_config_storage[0],
@@ -608,7 +612,7 @@ async fn test_multisig_update_signers() -> anyhow::Result<()> {
 /// - 1 Multisig Contract
 /// - 1 Transaction Script calling multisig procedures
 #[tokio::test]
-async fn test_multisig_update_signers_remove_owner() -> anyhow::Result<()> {
+async fn test_multisig_spending_limits_update_signers_remove_owner() -> anyhow::Result<()> {
     // Setup 5 original owners with threshold 4
     let (_secret_keys, public_keys, authenticators) = setup_keys_and_authenticators(5, 5)?;
     let multisig_account = create_multisig_account(4, &public_keys, 10, vec![])?;
@@ -639,9 +643,9 @@ async fn test_multisig_update_signers_remove_owner() -> anyhow::Result<()> {
 
     // Create transaction script
     let tx_script = CodeBuilder::default()
-        .with_dynamically_linked_library(rpo_falcon_512_multisig_library())?
+        .with_dynamically_linked_library(multisig_spending_limits_library())?
         .compile_tx_script(
-            "begin\n    call.::rpo_falcon_512_multisig::update_signers_and_threshold\nend",
+            "begin\n    call.::multisig_spending_limits::update_signers_and_threshold\nend",
         )?;
 
     let advice_inputs = AdviceInputs { map: advice_map, ..Default::default() };
@@ -710,7 +714,7 @@ async fn test_multisig_update_signers_remove_owner() -> anyhow::Result<()> {
         let storage_key = [Felt::new(i as u64), Felt::new(0), Felt::new(0), Felt::new(0)].into();
         let storage_item = updated_multisig_account
             .storage()
-            .get_map_item(AuthRpoFalcon512Multisig::approver_public_keys_slot(), storage_key)?;
+            .get_map_item(AuthMultisigSpendingLimits::approver_public_keys_slot(), storage_key)?;
         let expected_word: Word = expected_key.to_commitment().into();
         assert_eq!(storage_item, expected_word, "Public key {} doesn't match", i);
     }
@@ -718,7 +722,7 @@ async fn test_multisig_update_signers_remove_owner() -> anyhow::Result<()> {
     // Verify threshold and num_approvers
     let threshold_config = updated_multisig_account
         .storage()
-        .get_item(AuthRpoFalcon512Multisig::threshold_config_slot())?;
+        .get_item(AuthMultisigSpendingLimits::threshold_config_slot())?;
     assert_eq!(threshold_config[0], Felt::new(threshold), "Threshold not updated");
     assert_eq!(threshold_config[1], Felt::new(num_of_approvers), "Num approvers not updated");
 
@@ -740,7 +744,10 @@ async fn test_multisig_update_signers_remove_owner() -> anyhow::Result<()> {
             [Felt::new(removed_idx), Felt::new(0), Felt::new(0), Felt::new(0)].into();
         let removed_owner_slot = updated_multisig_account
             .storage()
-            .get_map_item(AuthRpoFalcon512Multisig::approver_public_keys_slot(), removed_owner_key)
+            .get_map_item(
+                AuthMultisigSpendingLimits::approver_public_keys_slot(),
+                removed_owner_key,
+            )
             .unwrap();
         assert_eq!(
             removed_owner_slot,
@@ -756,7 +763,7 @@ async fn test_multisig_update_signers_remove_owner() -> anyhow::Result<()> {
         let storage_key = [Felt::new(i as u64), Felt::new(0), Felt::new(0), Felt::new(0)].into();
         let storage_item = updated_multisig_account
             .storage()
-            .get_map_item(AuthRpoFalcon512Multisig::approver_public_keys_slot(), storage_key)
+            .get_map_item(AuthMultisigSpendingLimits::approver_public_keys_slot(), storage_key)
             .unwrap();
 
         if storage_item != Word::empty() {
@@ -787,7 +794,8 @@ async fn test_multisig_update_signers_remove_owner() -> anyhow::Result<()> {
 /// 3. Try to sign the transaction with the NEW approvers (should fail)
 /// 4. Verify that only the CURRENT approvers can sign the update transaction
 #[tokio::test]
-async fn test_multisig_new_approvers_cannot_sign_before_update() -> anyhow::Result<()> {
+async fn test_multisig_spending_limits_new_approvers_cannot_sign_before_update()
+-> anyhow::Result<()> {
     // SECTION 1: Create a multisig account with 2 original approvers
     // ================================================================================
 
@@ -839,12 +847,12 @@ async fn test_multisig_new_approvers_cannot_sign_before_update() -> anyhow::Resu
     // Create a transaction script that calls the update_signers procedure
     let tx_script_code = "
         begin
-            call.::rpo_falcon_512_multisig::update_signers_and_threshold
+            call.::multisig_spending_limits::update_signers_and_threshold
         end
     ";
 
     let tx_script = CodeBuilder::default()
-        .with_dynamically_linked_library(rpo_falcon_512_multisig_library())?
+        .with_dynamically_linked_library(multisig_spending_limits_library())?
         .compile_tx_script(tx_script_code)?;
 
     let advice_inputs = AdviceInputs {
@@ -916,7 +924,7 @@ async fn test_multisig_new_approvers_cannot_sign_before_update() -> anyhow::Resu
 /// 1. Consume a note when only one approver signs the transaction
 /// 2. Send a note only when both approvers sign the transaction (default threshold)
 #[tokio::test]
-async fn test_multisig_proc_threshold_overrides() -> anyhow::Result<()> {
+async fn test_multisig_spending_limits_proc_threshold_overrides() -> anyhow::Result<()> {
     // Setup keys and authenticators
     let (_secret_keys, public_keys, authenticators) = setup_keys_and_authenticators(2, 2)?;
 

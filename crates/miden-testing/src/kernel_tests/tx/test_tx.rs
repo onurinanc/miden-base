@@ -4,50 +4,26 @@ use anyhow::Context;
 use assert_matches::assert_matches;
 use miden_processor::crypto::RpoRandomCoin;
 use miden_protocol::account::{
-    Account,
-    AccountBuilder,
-    AccountCode,
-    AccountComponent,
-    AccountStorage,
-    AccountStorageMode,
-    AccountType,
-    StorageSlot,
-    StorageSlotName,
+    Account, AccountBuilder, AccountCode, AccountComponent, AccountStorage, AccountStorageMode,
+    AccountType, StorageSlot, StorageSlotName,
 };
 use miden_protocol::assembly::DefaultSourceManager;
 use miden_protocol::assembly::diagnostics::NamedSource;
 use miden_protocol::asset::{Asset, AssetVault, FungibleAsset, NonFungibleAsset};
 use miden_protocol::block::BlockNumber;
 use miden_protocol::note::{
-    Note,
-    NoteAssets,
-    NoteExecutionHint,
-    NoteExecutionMode,
-    NoteHeader,
-    NoteId,
-    NoteInputs,
-    NoteMetadata,
-    NoteRecipient,
-    NoteTag,
-    NoteType,
+    Note, NoteAssets, NoteExecutionHint, NoteExecutionMode, NoteHeader, NoteId, NoteInputs,
+    NoteMetadata, NoteRecipient, NoteTag, NoteType,
 };
 use miden_protocol::testing::account_id::{
-    ACCOUNT_ID_PRIVATE_SENDER,
-    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET,
-    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_2,
-    ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_IMMUTABLE_CODE,
-    ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE,
-    ACCOUNT_ID_SENDER,
+    ACCOUNT_ID_PRIVATE_SENDER, ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET,
+    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_2, ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_IMMUTABLE_CODE,
+    ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE, ACCOUNT_ID_SENDER,
 };
 use miden_protocol::testing::constants::{FUNGIBLE_ASSET_AMOUNT, NON_FUNGIBLE_ASSET_DATA};
 use miden_protocol::testing::note::DEFAULT_NOTE_CODE;
 use miden_protocol::transaction::{
-    InputNotes,
-    OutputNote,
-    OutputNotes,
-    TransactionArgs,
-    TransactionKernel,
-    TransactionSummary,
+    InputNotes, OutputNote, OutputNotes, TransactionArgs, TransactionKernel, TransactionSummary,
 };
 use miden_protocol::{Felt, FieldElement, Hasher, ONE, Word};
 use miden_standards::AuthScheme;
@@ -536,6 +512,9 @@ async fn tx_summary_commitment_is_signed_by_falcon_auth() -> anyhow::Result<()> 
         AuthScheme::RpoFalcon512Multisig { .. } => {
             panic!("Expected RpoFalcon512 auth scheme, got RpoFalcon512Multisig")
         },
+        AuthScheme::MultisigSpendingLimits { .. } => {
+            panic!("Expected RpoFalcon512 auth scheme, got MultisigSpendingLimits")
+        },
         AuthScheme::Unknown => panic!("Expected RpoFalcon512 auth scheme, got Unknown"),
         AuthScheme::EcdsaK256Keccak { .. } => {
             panic!("Expected RpoFalcon512 auth scheme, got EcdsaK256Keccak")
@@ -602,6 +581,9 @@ async fn tx_summary_commitment_is_signed_by_ecdsa_auth() -> anyhow::Result<()> {
         AuthScheme::NoAuth => panic!("Expected EcdsaK256Keccak auth scheme, got NoAuth"),
         AuthScheme::RpoFalcon512Multisig { .. } => {
             panic!("Expected EcdsaK256Keccak auth scheme, got RpoFalcon512Multisig")
+        },
+        AuthScheme::MultisigSpendingLimits { .. } => {
+            panic!("Expected EcdsaK256Keccak auth scheme, got MultisigSpendingLimits")
         },
         AuthScheme::Unknown => panic!("Expected EcdsaK256Keccak auth scheme, got Unknown"),
         AuthScheme::RpoFalcon512 { .. } => {

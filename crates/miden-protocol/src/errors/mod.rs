@@ -36,12 +36,8 @@ use crate::block::BlockNumber;
 use crate::note::{NoteAssets, NoteExecutionHint, NoteTag, NoteType, Nullifier};
 use crate::transaction::{TransactionEventId, TransactionId};
 use crate::{
-    ACCOUNT_UPDATE_MAX_SIZE,
-    MAX_ACCOUNTS_PER_BATCH,
-    MAX_INPUT_NOTES_PER_BATCH,
-    MAX_INPUT_NOTES_PER_TX,
-    MAX_INPUTS_PER_NOTE,
-    MAX_OUTPUT_NOTES_PER_TX,
+    ACCOUNT_UPDATE_MAX_SIZE, MAX_ACCOUNTS_PER_BATCH, MAX_INPUT_NOTES_PER_BATCH,
+    MAX_INPUT_NOTES_PER_TX, MAX_INPUTS_PER_NOTE, MAX_OUTPUT_NOTES_PER_TX,
 };
 
 #[cfg(any(feature = "testing", test))]

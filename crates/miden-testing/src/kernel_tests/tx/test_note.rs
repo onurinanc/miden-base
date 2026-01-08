@@ -12,19 +12,11 @@ use miden_protocol::crypto::dsa::falcon512_rpo::SecretKey;
 use miden_protocol::crypto::rand::{FeltRng, RpoRandomCoin};
 use miden_protocol::errors::MasmError;
 use miden_protocol::note::{
-    Note,
-    NoteAssets,
-    NoteExecutionHint,
-    NoteExecutionMode,
-    NoteInputs,
-    NoteMetadata,
-    NoteRecipient,
-    NoteTag,
-    NoteType,
+    Note, NoteAssets, NoteExecutionHint, NoteExecutionMode, NoteInputs, NoteMetadata,
+    NoteRecipient, NoteTag, NoteType,
 };
 use miden_protocol::testing::account_id::{
-    ACCOUNT_ID_NETWORK_FUNGIBLE_FAUCET,
-    ACCOUNT_ID_REGULAR_PRIVATE_ACCOUNT_UPDATABLE_CODE,
+    ACCOUNT_ID_NETWORK_FUNGIBLE_FAUCET, ACCOUNT_ID_REGULAR_PRIVATE_ACCOUNT_UPDATABLE_CODE,
     ACCOUNT_ID_SENDER,
 };
 use miden_protocol::transaction::memory::ACTIVE_INPUT_NOTE_PTR;
@@ -38,11 +30,7 @@ use rand_chacha::ChaCha20Rng;
 
 use crate::kernel_tests::tx::{ExecutionOutputExt, input_note_data_ptr};
 use crate::{
-    Auth,
-    MockChain,
-    TransactionContext,
-    TransactionContextBuilder,
-    TxContextInput,
+    Auth, MockChain, TransactionContext, TransactionContextBuilder, TxContextInput,
     assert_transaction_executor_error,
 };
 

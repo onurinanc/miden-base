@@ -2,17 +2,12 @@ use miden_processor::AdviceInputs;
 use miden_processor::crypto::RpoRandomCoin;
 use miden_protocol::account::auth::{AuthSecretKey, PublicKey};
 use miden_protocol::account::{
-    Account,
-    AccountBuilder,
-    AccountId,
-    AccountStorageMode,
-    AccountType,
+    Account, AccountBuilder, AccountId, AccountStorageMode, AccountType,
 };
 use miden_protocol::asset::FungibleAsset;
 use miden_protocol::note::NoteType;
 use miden_protocol::testing::account_id::{
-    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET,
-    ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE,
+    ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET, ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE,
 };
 use miden_protocol::transaction::OutputNote;
 use miden_protocol::vm::AdviceMap;
@@ -734,8 +729,8 @@ async fn test_multisig_update_signers_remove_owner() -> anyhow::Result<()> {
     assert_eq!(threshold_config[0], Felt::new(threshold), "Threshold not updated");
     assert_eq!(threshold_config[1], Felt::new(num_of_approvers), "Num approvers not updated");
 
-    // Verify extracted public keys
     let extracted_pub_keys = get_public_keys_from_account(&updated_multisig_account);
+    println!("Extracted public keys after update: {:?}", extracted_pub_keys);
     assert_eq!(extracted_pub_keys.len(), 2, "Should have 2 public keys after update");
 
     for expected_key in new_public_keys.iter() {
