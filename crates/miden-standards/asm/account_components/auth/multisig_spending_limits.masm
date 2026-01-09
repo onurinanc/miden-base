@@ -46,6 +46,26 @@ const PROC_THRESHOLD_ROOTS_SLOT = word("miden::standards::auth::ecdsa_k256_kecca
 # Executed Transaction Flag Constant
 const IS_EXECUTED_FLAG = [1, 0, 0, 0]
 
+# User-defined spending interval (in blocks).
+# Typically set to the ~24h equivalent number of blocks.
+const SPENT_INTERVAL_BLOCKS_SLOT = word("miden::standards::auth::ecdsa_k256_keccak_multisig::spent_interval_blocks")
+
+# [amount_limit0, amount_limit1, amount_limit2, amount_start_delay]
+const AMOUNT_LIMITS_SLOT = word("miden::standards::auth::ecdsa_k256_keccak_multisig::amount_limits")
+
+# [amount_spent_in_epoch, epoch_last_spent, 0, 0]
+const SPENDING_TRACKER_SLOT = word("miden::standards::auth::ecdsa_k256_keccak_multisig::spending_tracker")
+
+# [tier_0, tier_1, tier_2, tier_3]
+const TIER_THRESHOLD_CONFIG_SLOT = word("miden::standards::auth::ecdsa_k256_keccak_multisig::tier_threshold_config")
+
+# [oracle_id_prefix, oracle_id_suffix, 0, 0]
+const ORACLE_CONFIG_SLOT = word("miden::standards::auth::ecdsa_k256_keccak_multisig::oracle_config")
+
+# Procedure root for the oracle price reader (e.g. get_median proc root)
+# [proc_root]
+const GET_PRICE_PROC_ROOT_SLOT = word("miden::standards::auth::ecdsa_k256_keccak_multisig::get_price_proc_root")
+
 # ERRORS
 # =================================================================================================
 
