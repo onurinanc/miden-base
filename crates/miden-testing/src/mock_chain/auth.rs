@@ -2,7 +2,7 @@
 // ================================================================================================
 use alloc::vec::Vec;
 
-use miden_protocol::Word;
+use miden_protocol::{Felt, Word};
 use miden_protocol::account::AccountComponent;
 use miden_protocol::account::auth::{AuthSecretKey, PublicKeyCommitment};
 use miden_protocol::testing::noop_auth_component::NoopAuthComponent;
@@ -55,6 +55,11 @@ pub enum Auth {
         threshold: u32,
         approvers: Vec<Word>,
         proc_threshold_map: Vec<(Word, u32)>,
+        spent_interval_blocks: u32,
+        amount_limits: [u64; 4],
+        tier_thresholds: [u32; 4],
+        oracle_id: [Felt; 2],
+        get_price_proc_root: Word,
     },
 
     /// Creates a secret key for the account, and creates a [BasicAuthenticator] used to
@@ -132,13 +137,22 @@ impl Auth {
 
                 (component, None)
             },
-            Auth::MultisigSpendingLimits { threshold, approvers, proc_threshold_map } => {
+            Auth::MultisigSpendingLimits { threshold, approvers, proc_threshold_map, spent_interval_blocks, amount_limits, tier_thresholds, oracle_id, get_price_proc_root } => {
+
                 let pub_keys: Vec<_> =
                     approvers.iter().map(|word| PublicKeyCommitment::from(*word)).collect();
 
                 let config = AuthMultisigSpendingLimitsConfig::new(pub_keys, *threshold)
                     .and_then(|cfg| cfg.with_proc_thresholds(proc_threshold_map.clone()))
+                    .map(|cfg| {
+                        cfg.with_spent_interval_blocks(*spent_interval_blocks)
+                            .with_amount_limits(*amount_limits)
+                            .with_tier_thresholds(*tier_thresholds)
+                            .with_oracle_config(*oracle_id)
+                            .with_get_price_proc_root(*get_price_proc_root)
+                    })
                     .expect("invalid multisig config");
+                
                 let component = AuthMultisigSpendingLimits::new(config)
                     .expect("multisig component creation failed")
                     .into();

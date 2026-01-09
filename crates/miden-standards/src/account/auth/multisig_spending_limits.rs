@@ -148,8 +148,8 @@ impl AuthMultisigSpendingLimitsConfig {
     }
 
     // Attaches oracle configuration for spending limits
-    pub fn with_oracle_config(mut self, oracle_id: [u64; 2]) -> Self {
-        self.oracle_id = [Felt::from(oracle_id[0] as u32), Felt::from(oracle_id[1] as u32)];
+    pub fn with_oracle_config(mut self, oracle_id: [Felt; 2]) -> Self {
+        self.oracle_id = oracle_id;
         self
     }
 
@@ -515,7 +515,7 @@ mod tests {
                 .with_spent_interval_blocks(spent_interval_blocks)
                 .with_amount_limits(amount_limits)
                 .with_tier_thresholds(tier_thresholds)
-                .with_oracle_config([1234u64, 5678u64])
+                .with_oracle_config(oracle_id)
                 .with_get_price_proc_root(get_price_proc_root),
         )
         .expect("multisig component creation failed");

@@ -12,7 +12,7 @@ use miden_protocol::testing::account_id::{
 use miden_protocol::transaction::OutputNote;
 use miden_protocol::vm::AdviceMap;
 use miden_protocol::{Felt, Hasher, Word};
-use miden_standards::account::auth::AuthMultisigSpendingLimits;
+use miden_standards::account::auth::{AuthMultisigSpendingLimits};
 use miden_standards::account::components::multisig_spending_limits_library;
 use miden_standards::account::interface::{AccountInterface, AccountInterfaceExt};
 use miden_standards::account::wallets::BasicWallet;
@@ -62,49 +62,30 @@ fn setup_keys_and_authenticators(
     Ok((secret_keys, public_keys, authenticators))
 }
 
-/// Creates a multisig account with the specified configuration
-fn create_multisig_account(
-    threshold: u32,
-    public_keys: &[PublicKey],
-    asset_amount: u64,
-    proc_threshold_map: Vec<(Word, u32)>,
-) -> anyhow::Result<Account> {
-    let approvers: Vec<_> = public_keys.iter().map(|pk| pk.to_commitment().into()).collect();
-
-    let multisig_account = AccountBuilder::new([0; 32])
-        .with_auth_component(Auth::MultisigSpendingLimits {
-            threshold,
-            approvers,
-            proc_threshold_map,
-        })
-        .with_component(BasicWallet)
-        .account_type(AccountType::RegularAccountUpdatableCode)
-        .storage_mode(AccountStorageMode::Public)
-        .with_assets(vec![FungibleAsset::mock(asset_amount)])
-        .build_existing()?;
-
-    Ok(multisig_account)
-}
-
-/// Create a multisig account with the different faucet_id and asset values
-/// farklı faucet_id ve asset amountlarına sahip şekilde oluştursun
-/// Birden fazla değer için oluştusun, bir sürü faucet_id ve asset_amount alsın.
-/// Şu türden bir kaç tane alabileyim işte asset olarak
-/// let account_id = AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_3).unwrap();
-/// let asset = FungibleAsset::new(account_id, 50).unwrap();
-fn create_multisig_account_with_assets(
+fn create_multisig_spending_limits_account_with_assets(
     threshold: u32,
     public_keys: &[PublicKey],
     assets: Vec<FungibleAsset>,
+    spent_interval_blocks: u32,
+    amount_limits: [u64; 4],
+    tier_thresholds: [u32; 4],
+    oracle_id: [Felt; 2],
+    get_price_proc_root: Word,
     proc_threshold_map: Vec<(Word, u32)>,
 ) -> anyhow::Result<Account> {
     let approvers: Vec<_> = public_keys.iter().map(|pk| pk.to_commitment().into()).collect();
 
+   // Create the multisig spending limits account
     let multisig_account = AccountBuilder::new([0; 32])
         .with_auth_component(Auth::MultisigSpendingLimits {
             threshold,
             approvers,
             proc_threshold_map,
+            spent_interval_blocks,
+            amount_limits,
+            tier_thresholds,
+            oracle_id,
+            get_price_proc_root,
         })
         .with_component(BasicWallet)
         .account_type(AccountType::RegularAccountUpdatableCode)
@@ -113,6 +94,37 @@ fn create_multisig_account_with_assets(
         .build_existing()?;
 
     Ok(multisig_account)
+}
+
+fn create_multisig_account(
+    threshold: u32,
+    public_keys: &[PublicKey],
+    starting_balance: u64,
+    proc_threshold_map: Vec<(Word, u32)>,
+) -> anyhow::Result<Account> {
+    let spent_interval_blocks = 10u32;
+    let amount_limits = [5000u64, 10000u64, 15000u64, 20000u64];
+    let tier_thresholds = [1u32, 2u32, 3u32, 4u32];
+    let oracle_id = [Felt::from(1234u32), Felt::from(5678u32)];
+    let get_price_proc_root =
+        Word::from([0xdeadbeef_u32, 0xcafebabe_u32, 0xfeedface_u32, 0xabad1dea_u32]);
+
+    let assets = vec![FungibleAsset::new(
+        AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET)?,
+        starting_balance,
+    )?];
+
+    create_multisig_spending_limits_account_with_assets(
+        threshold,
+        public_keys,
+        assets,
+        spent_interval_blocks,
+        amount_limits,
+        tier_thresholds,
+        oracle_id,
+        get_price_proc_root,
+        proc_threshold_map,
+    )
 }
 
 // ================================================================================================
@@ -128,15 +140,31 @@ async fn test_multisig_spending_limits_send_3_different_assets() -> anyhow::Resu
         (AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_3)?, 30000u64),
     ];
 
-    let mut multisig_account = create_multisig_account_with_assets(
-        2,
-        &public_keys,
-        multisig_starting_faucets
-            .iter()
-            .map(|(faucet_id, amount)| FungibleAsset::new(*faucet_id, *amount).unwrap())
-            .collect(),
-        vec![],
-    )?;
+    let spent_interval_blocks = 10u32;
+    let amount_limits = [5000u64, 10000u64, 15000u64, 20000u64];
+    let tier_thresholds = [1u32, 2u32, 3u32, 4u32];
+    let oracle_id = [Felt::from(1234u32), Felt::from(5678u32)];
+    let get_price_proc_root =
+        Word::from([0xdeadbeef_u32, 0xcafebabe_u32, 0xfeedface_u32, 0xabad1dea_u32]);
+
+
+    let mut multisig_account =
+        create_multisig_spending_limits_account_with_assets(
+            2,
+            &public_keys,
+            multisig_starting_faucets
+                .iter()
+                .map(|(account_id, amount)| {
+                    FungibleAsset::new(*account_id, *amount).unwrap()
+                })
+                .collect(),
+            spent_interval_blocks,
+            amount_limits,
+            tier_thresholds,
+            oracle_id,
+            get_price_proc_root,
+            vec![],
+        )?;
 
     // print multisig_account vault assets
     for asset in multisig_account.vault().assets() {
@@ -248,6 +276,7 @@ async fn test_multisig_spending_limits_send_3_different_assets() -> anyhow::Resu
 
     Ok(())
 }
+
 
 /// Tests basic 2-of-2 multisig functionality with note creation.
 ///
@@ -1233,4 +1262,3 @@ async fn test_multisig_spending_limits_proc_threshold_overrides() -> anyhow::Res
 
     Ok(())
 }
-
