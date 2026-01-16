@@ -322,6 +322,12 @@ impl From<AuthMultisigSpendingLimits> for AccountComponent {
             Word::from([multisig.config.spent_interval_blocks(), 0, 0, 0]),
         ));
 
+        // Spending tracker slot içerisinde [amount_spent_in_epoch, last_spent_epoch, 0, 0] olacak bunlar da başlangıçta 0 olacak
+        storage_slots.push(StorageSlot::with_value(
+            AuthMultisigSpendingLimits::spending_tracker_slot().clone(),
+            Word::from([120u32, 4u32, 0u32, 0u32]),
+        ));
+
         // Amount limits slot (value: [limit_1, limit_2, limit_3, limit_delay])
         storage_slots.push(StorageSlot::with_value(
             AuthMultisigSpendingLimits::amount_limits_slot().clone(),
@@ -504,8 +510,8 @@ mod tests {
         let approvers = vec![pub_key_1, pub_key_2];
         let threshold = 2u32;
         let spent_interval_blocks = 100u32;
-        let amount_limits = [1000u64, 5000u64, 10000u64, 10u64];
-        let tier_thresholds = [100u32, 500u32, 1000u32, 5000u32];
+        let amount_limits = [500u64, 1000u64, 2000u64, 1500u64];
+        let tier_thresholds = [1u32, 2u32, 3u32, 4u32];
         let oracle_id = [Felt::from(1234u32), Felt::from(5678u32)];
         let get_price_proc_root = Word::from([0xdeadbeef_u32, 0xcafebabe_u32, 0xfeedface_u32, 0xabad1dea_u32]);
 

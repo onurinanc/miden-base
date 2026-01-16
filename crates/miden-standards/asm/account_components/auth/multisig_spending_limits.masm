@@ -4,7 +4,11 @@
 
 use miden::protocol::active_account
 use miden::protocol::native_account
+use miden::protocol::output_note
+use miden::protocol::account_id
+use miden::protocol::tx
 use miden::standards::auth
+
 
 type BeWord = struct @bigendian { a: felt, b: felt, c: felt, d: felt }
 
@@ -74,6 +78,22 @@ const ERR_TX_ALREADY_EXECUTED = "failed to approve multisig transaction as it wa
 const ERR_MALFORMED_MULTISIG_CONFIG = "number of approvers must be equal to or greater than threshold"
 
 const ERR_ZERO_IN_MULTISIG_CONFIG = "number of approvers or threshold must not be zero"
+
+const ERR_U32 = "value is not a u32"
+
+const ERR_SPENT_INTERVAL_ZERO = "spent_interval_blocks must be non-zero"
+
+const ERR_LAST_EPOCH_GT_CURRENT = "last_spent_epoch is greater than current_epoch"
+
+const ERR_INVALID_TIER_INDEX = "invalid tier index (must be 0..3)"
+
+const ERR_TIER0_MUST_BE_POSITIVE = "tier_0 must be > 0"
+
+const ERR_TIER3_TOO_HIGH = "tier_3 must be < num_approvers"
+
+const ERR_INVALID_TIER_CONFIG = "tier config is invalid"
+
+const ERR_INVALID_AMOUNT_LIMITS = "invalid amount limits (must satisfy limit0 <= limit1 <= limit2)"
 
 #! Check if transaction has already been executed and add it to executed transactions for replay protection.
 #!
@@ -169,6 +189,7 @@ end
 #! - PUB_KEY_i is the public key of the i-th signer
 #!
 #! Locals:
+#!
 #! 0: new_num_of_approvers
 #! 1: init_num_of_approvers
 @locals(2)
@@ -253,14 +274,267 @@ pub proc update_signers_and_threshold(multisig_config_hash: BeWord)
     # => [pad(12)]
 end
 
+#! High-impact action.
+#!
+#! Sets the global spending interval measured in blocks.
+#! Used to compute epochs for spending policy checks.
+#!
+#! Inputs:  [spent_interval_blocks]
+#! Outputs: []
+#!
+#! Side effects:
+#!   - Writes SPENT_INTERVAL_BLOCKS_SLOT.
+pub proc update_spent_interval_blocks
+    u32assert.err=ERR_U32
+    dup eq.0 assertz.err=ERR_SPENT_INTERVAL_ZERO
+    # => [spent_interval_blocks]
+
+    # build value word for storage: [spent_interval_blocks, 0, 0, 0]
+    # stack representation to store is reverse: [0, 0, 0, spent_interval_blocks]
+    push.0 push.0 push.0
+    # => [0, 0, 0, spent_interval_blocks]
+
+    push.SPENT_INTERVAL_BLOCKS_SLOT[0..2]
+    # => [slot_prefix, slot_suffix, 0, 0, 0, spent_interval_blocks]
+
+    exec.native_account::set_item
+    # => [OLD_WORD]
+
+    dropw
+    # => []
+end
+
+#! High-impact action.
+#!
+#! Sets tier thresholds stored in TIER_THRESHOLD_CONFIG_SLOT.
+#! These thresholds map a computed tier index to required approvals.
+#!
+#! Inputs:  [tier_0, tier_1, tier_2, tier_3]
+#! Outputs: []
+#!
+#! Side effects:
+#!   - Writes TIER_THRESHOLD_CONFIG_SLOT.
+#!
+#! Locals:
+#!
+#! 0: tier_0
+#! 1: tier_1
+#! 2: tier_2
+#! 3: tier_3
+@locals(4)
+pub proc update_threshold_config
+    # ------ Check inputs are u32 ------
+    u32assert.err=ERR_U32  
+    loc_store.0
+    # => [tier_1, tier_2, tier_3]
+    
+    u32assert.err=ERR_U32  
+    loc_store.1
+    # => [tier_2, tier_3]
+
+    u32assert.err=ERR_U32  
+    loc_store.2
+    # => [tier_3]
+
+    u32assert.err=ERR_U32  
+    loc_store.3
+    # => []
+
+    # tier_0 must be > 0
+    loc_load.0
+    eq.0
+    assertz.err=ERR_TIER0_MUST_BE_POSITIVE
+    # => []
+
+    # ------ Monotonic check tier_0 <= tier_1 <= tier_2 <= tier_3 ------
+    loc_load.0 loc_load.1 u32assert2.err=ERR_U32 u32gte assertz.err=ERR_INVALID_TIER_CONFIG
+    loc_load.1 loc_load.2 u32assert2.err=ERR_U32 u32gte assertz.err=ERR_INVALID_TIER_CONFIG
+    loc_load.2 loc_load.3 u32assert2.err=ERR_U32 u32gte assertz.err=ERR_INVALID_TIER_CONFIG
+    # => []
+
+    # ------ Check the threshold < num_approvers
+    push.THRESHOLD_CONFIG_SLOT[0..2]
+    # => [THRESHOLD_CONFIG_SLOT]
+
+    exec.active_account::get_initial_item
+    # => [0, 0, num_approvers, default_threshold]
+    
+    drop drop
+    # => [num_approvers, default_threshold]
+    
+    swap drop
+    # => [num_approvers]
+
+    loc_load.3
+    # => [tier_3, num_approvers]
+    u32lt
+    assert.err=ERR_TIER3_TOO_HIGH
+    # => []
+
+    # ------ Prepare data for storage ------
+    loc_load.0
+    loc_load.1
+    loc_load.2
+    loc_load.3
+    # => [tier_3, tier_2, tier_1, tier_0]
+
+    push.TIER_THRESHOLD_CONFIG_SLOT[0..2]
+    # => [slot_prefix, slot_suffix, tier_3, tier_2, tier_1, tier_0]
+
+    exec.native_account::set_item
+    # => [OLD_WORD]
+
+    dropw
+    # => []
+end
+
+#! High-impact action.
+#!
+#! Sets amount limits stored in AMOUNT_LIMITS_SLOT.
+#! These amount limits are used to compute the required threshold tier.
+#!
+#! Inputs:  [amount_limit0, amount_limit1, amount_limit2, amount_start_delay]
+#! Outputs: []
+#!
+#! Side effects:
+#!   - Writes AMOUNT_LIMITS_SLOT.
+#!
+#! Locals:
+#!
+#! 0: amount_limit0
+#! 1: amount_limit1
+#! 2: amount_limit2
+#! 3: amount_start_delay
+@locals(4)
+pub proc update_spending_limits
+    u32assert.err=ERR_U32  
+    loc_store.0   
+    # => [amount_limit1, amount_limit2, amount_start_delay]
+
+    u32assert.err=ERR_U32  
+    loc_store.1
+    # => [amount_limit2, amount_start_delay]
+
+    u32assert.err=ERR_U32  
+    loc_store.2
+    # => [amount_start_delay]
+
+    u32assert.err=ERR_U32  
+    loc_store.3
+    # => []
+
+    # (opsiyonel) monotonic check: limit0 <= limit1 <= limit2
+    loc_load.0 loc_load.1 u32assert2.err=ERR_U32 u32gte assertz.err=ERR_INVALID_AMOUNT_LIMITS  # limit0 > limit1 ?
+    loc_load.1 loc_load.2 u32assert2.err=ERR_U32 u32gte assertz.err=ERR_INVALID_AMOUNT_LIMITS  # limit1 > limit2 ?
+    # => []
+
+    # build word for storage: [limit0, limit1, limit2, start_delay]
+    # stack rep must be: [start_delay, limit2, limit1, limit0]
+    loc_load.0
+    loc_load.1
+    loc_load.2
+    loc_load.3
+    # => [start_delay, limit2, limit1, limit0]
+
+    push.AMOUNT_LIMITS_SLOT[0..2]
+    # => [slot_prefix, slot_suffix, start_delay, limit2, limit1, limit0]
+
+    exec.native_account::set_item
+    # => [OLD_WORD]
+
+    dropw
+    # => []
+end
+
+#! High-impact action.
+#!
+#! Updates the oracle configuration and the procedure root used for price reads.
+#! - Stores the oracle id (prefix/suffix) in ORACLE_CONFIG_SLOT as [oracle_id_prefix, oracle_id_suffix, 0, 0]
+#! - Stores the oracle "get_price" (e.g. get_median) procedure root in GET_PRICE_PROC_ROOT_SLOT as [proc_root]
+#!
+#! Inputs:  [oracle_id_prefix, oracle_id_suffix, GET_MEDIAN_PROC_ROOT]
+#! Outputs: []
+#!
+#! Side effects:
+#!   - Writes ORACLE_CONFIG_SLOT
+#!   - Writes GET_PRICE_PROC_ROOT_SLOT
+#!
+#! Locals:
+#!
+#! 0: oracle_id_prefix
+#! 1: oracle_id_suffix
+#! 2: get_price_root_w3
+#! 3: get_price_root_w2
+#! 4: get_price_root_w1
+#! 5: get_price_root_w0
+@locals(6)
+pub proc update_oracle_config_and_proc_root(get_median_proc_root: BeWord)
+    # Store oracle_id_prefix
+    loc_store.0
+    # => [oracle_id_suffix, GET_MEDIAN_PROC_ROOT]
+
+    
+    # Store oracle_id_suffix
+    loc_store.1
+    # => [GET_MEDIAN_PROC_ROOT]
+
+    # Store oracle get_price proc_root
+    loc_store.2
+    loc_store.3
+    loc_store.4
+    loc_store.5
+    # => []
+
+    # ------ Write ORACLE_CONFIG_SLOT = [oracle_id_prefix, oracle_id_suffix, 0, 0]
+    # ------ Reconstruct the stack: [0, 0, oracle_id_suffix, oracle_id_prefix]
+    loc_load.0
+    loc_load.1
+    push.0
+    push.0
+    # => [0, 0, oracle_id_suffix, oracle_id_prefix]
+
+    push.ORACLE_CONFIG_SLOT[0..2]
+    # => [slot_prefix, slot_suffix, 0, 0, oracle_id_suffix, oracle_id_prefix]
+
+    exec.native_account::set_item
+    # => [OLD_WORD]
+
+    dropw
+    # => []
+
+    # ------ Write GET_PRICE_PROC_ROOT_SLOT = [GET_MEDIAN_PROC_ROOT]
+    # ------ Reconstruct root word in the same stack order it originally had:
+    loc_load.5
+    loc_load.4
+    loc_load.3
+    loc_load.2
+    # => [root_w3, root_w2, root_w1, root_w0]
+
+    push.GET_PRICE_PROC_ROOT_SLOT[0..2]
+    # => [slot_prefix, slot_suffix, root_w3, root_w2, root_w1, root_w0]
+    
+    exec.native_account::set_item
+    # => [OLD_WORD]
+
+    dropw
+    # => []
+end
+
+
 # Computes the effective transaction threshold based on called procedures and per-procedure
 # overrides stored in PROC_THRESHOLD_ROOTS_SLOT. Falls back to default_threshold if no
 # overrides apply.
 #
-#! Inputs:  [default_threshold]
+#! Inputs:  [default_threshold, spending_threshold]
 #! Outputs: [transaction_threshold]
-@locals(1)
-proc compute_transaction_threshold(default_threshold: u32) -> u32
+#!
+#! Locals:
+#!
+#! 0: default_threshold
+#! 1: spending_threshold
+@locals(2)
+proc compute_transaction_threshold(default_threshold: u32, spending_threshold: u32) -> u32
+    debug.stack
     # 1. initialize transaction_threshold = 0
     # 2. iterate through all account procedures
     #   a. check if the procedure was called during the transaction
@@ -270,6 +544,10 @@ proc compute_transaction_threshold(default_threshold: u32) -> u32
 
     # store default_threshold for later
     loc_store.0
+    # => [spending_threshold]
+
+    # store spending_threshold for later
+    loc_store.1
     # => []
 
     # 1. initialize transaction_threshold = 0
@@ -333,16 +611,565 @@ proc compute_transaction_threshold(default_threshold: u32) -> u32
     drop
     # => [transaction_threshold]
 
+    loc_load.1
+    debug.stack
+    # => [spending_threshold, transaction_threshold]
+
+    dup.1 dup.1
+    # => [spending_threshold, transaction_threshold, spending_threshold, transaction_threshold]
+    
+    swap
+    # => [transaction_threshold, spending_threshold, spending_threshold, transaction_threshold]
+    
+    u32gt
+    # => [is_spending_gt, spending_threshold, transaction_threshold]
+    cdrop
+    # => [combined_threshold]
+
     loc_load.0
-    # => [default_threshold, transaction_threshold]
+    debug.stack
+    # => [default_threshold, combined_threshold]
 
     # 3. if transaction_threshold == 0 at the end, revert to using default_threshold
     dup.1 eq.0
-    # => [is_zero, default_threshold, transaction_threshold]
+    debug.stack
+    # => [is_zero, default_threshold, combined_threshold]
 
     cdrop
+    debug.stack
     # => [effective_transaction_threshold]
 end
+
+#! Computes: epoch = block_number / spent_interval_blocks.
+#!
+#! Inputs:  [block_number]
+#! Outputs: [epoch]
+#!
+#! Notes:
+#!   - spent_interval_blocks is expected to be read from
+#!     SPENT_INTERVAL_BLOCKS_SLOT (slot 0).
+proc block_num_to_epoch
+    exec.get_spent_interval
+    # => [spent_interval, block_number]
+
+    # u32div expects [b, a] => floor(a/b); we already have [spent_interval_blocks, block_number]
+    u32div
+    # => [epoch]
+end
+
+#! Computes current_epoch from the current block number.
+#!
+#! Inputs:  []
+#! Outputs: [current_epoch]
+proc get_current_epoch
+    exec.get_mock_block_number
+    # => [block_number]
+
+    exec.block_num_to_epoch
+    # => [current_epoch]
+
+    # Error if the value is not u32 
+    u32assert2.err=ERR_U32
+end
+
+
+#! Returns whether we are still within the same epoch as the last spend.
+#!
+#! Semantics:
+#!   - if last_spent_epoch == current_epoch => returns 1
+#!   - if last_spent_epoch <  current_epoch => returns 0
+#!   - if last_spent_epoch >  current_epoch => error
+#!
+#! Inputs:  []
+#! Outputs: [within_epoch]
+proc within_epoch
+    exec.get_last_epoch_spent
+    # => [last_spent_epoch]
+
+    exec.get_current_epoch
+    # => [current_epoch, last_spent_epoch]
+
+    # --- Check if current_epoch == last_spent_epoch
+    dup.1 dup.1
+    # => [current_epoch, last_spent_epoch, current_epoch, last_spent_epoch]
+    eq
+    # => [is_eq, current_epoch, last_spent_epoch]
+
+    if.true
+        drop drop
+        push.1
+        # => [1]
+    else
+        u32lt
+        # => [is_lt]
+
+        # -- Check if last_spent_epoch < current_epoch
+        if.true
+            push.0
+            # => [0]
+        else
+            push.0 assert.err=ERR_LAST_EPOCH_GT_CURRENT
+        end
+    end
+end
+
+#! Reads amount_spent_in_epoch from SPENDING_TRACKER_SLOT.
+#!
+#! Outputs: [amount_spent_in_epoch]
+proc get_amount_spent_in_epoch
+    push.SPENDING_TRACKER_SLOT[0..2] 
+    # => [SPENDING_TRACKER_SLOT]
+
+    exec.active_account::get_initial_item
+    # => [0, 0, last_spent_epoch, amount_spent_in_epoch]
+
+    drop drop drop
+    # => [amount_spent_in_epoch]
+end
+
+
+#! Loads the configured spending interval (in blocks) from SPENT_INTERVAL_BLOCKS_SLOT.
+#!
+#! This value is used to derive `epoch = block_number / spent_interval_blocks`.
+#! Must be non-zero. 
+#! Panics with ERR_SPENT_INTERVAL_ZERO if zero.
+#!
+#! Inputs:  []
+#! Outputs: [spent_interval_blocks]
+proc get_spent_interval
+    push.SPENT_INTERVAL_BLOCKS_SLOT[0..2]
+    # => [SPENT_INTERVAL_BLOCK_SLOT]
+
+    exec.active_account::get_initial_item
+    # => [spent_interval, 0, 0, 0]
+
+    drop drop drop
+    # => [spent_interval]
+
+    dup eq.0 assertz.err=ERR_SPENT_INTERVAL_ZERO
+    # => [spent_interval]
+end
+
+#! Reads the last epoch in which spending was recorded from SPENDING_TRACKER_SLOT.
+#!
+#! Inputs:  []
+#! Outputs: [epoch_last_spent]
+proc get_last_epoch_spent
+    push.SPENDING_TRACKER_SLOT[0..2]
+    # => [SPENDING_TRACKER_SLOT]
+
+    exec.active_account::get_initial_item
+    # => [0, 0, epoch_last_spent, amount_spent_in_epoch]
+
+    movup.3
+    # => [amount_spent_in_epoch, 0, 0, epoch_last_spent]
+
+    drop drop drop
+    # => [epoch_last_spent]
+end
+
+#! Test helper to get a deterministic block number for local testing/debugging.
+#!
+#! Reads the real tx block number via tx::get_block_number and 
+#! Adds a constant offset +50 so epoch transitions can be exercised easily.
+#!
+#! Inputs:  []
+#! Outputs: [mock_block_number]
+proc get_mock_block_number
+    exec.tx::get_block_number
+    # => [block_number] = [0].
+
+    push.50 add
+    # => [block_number + 50] = [50].
+end
+
+
+#! Temporary oracle stub (for development).
+#!
+#! Behaves as if every faucet is tracked and priced 1:1:
+#! - is_tracked = 1
+#! - amount_in_usdc = amount
+#! Drops faucet_id and returns the amount unchanged.
+#!
+#! Inputs:  [faucet_id_prefix, faucet_id_suffix, amount]
+#! Outputs: [is_tracked, amount_in_usdc]
+proc get_price_test
+    drop drop
+    push.1
+end
+
+# tmp memory area for loading assets
+# NOTE: must be multiple of 4 for mem_loadw_be
+const TMP_ASSETS_PTR = 1024
+
+#! Computes the total spending amount for all output notes (USD terms).
+#!
+#! Behavior:
+#! - iterates over output notes: tx::get_num_output_notes
+#! - for each note: output_note::get_assets(dest_ptr, note_index) writes assets into memory
+#! - iterates assets in memory with mem_loadw_be (word load)
+#! - if asset is_fungible_faucet, calls get_price and adds tracked values
+#!
+#! Inputs:  []
+#! Outputs: [amount_in_usdc]
+#!
+#! Assumes (for fungible word on stack after mem_loadw_be):
+#!   [faucet_id_prefix, faucet_id_suffix, 0, amount]
+#! And get_price interface:
+#!   Inputs:  [faucet_id_prefix, faucet_id_suffix, amount]
+#!   Outputs: [is_tracked, amount_in_usdc]
+#!
+#! Locals:
+#!
+#! 0: running_sum
+#! 1: dest_ptr
+@locals(2)
+proc compute_spending_amount
+    # sum = 0
+    push.0
+    loc_store.0
+    # => []
+
+    # num_output_notes
+    exec.tx::get_num_output_notes
+    # => [num_notes]
+
+    dup neq.0
+    while.true
+        # note_index = num_notes - 1
+        sub.1
+        # => [note_index]
+
+        # keep note_index for outer loop continuation
+        dup
+        # => [note_index_arg, note_index_keep]
+
+        # call get_assets(dest_ptr, note_index_arg)
+        push.TMP_ASSETS_PTR
+        # => [dest_ptr, note_index_arg, note_index_keep]
+
+        exec.output_note::get_assets
+        # => [num_assets, dest_ptr, note_index_ret, note_index_keep]
+
+        # drop note_index_ret (NOT num_assets!)
+        movup.2
+        # => [note_index_ret, num_assets, dest_ptr, note_index_keep]
+        
+        drop
+        # => [num_assets, dest_ptr, note_index_keep]
+
+        # store dest_ptr into local ptr
+        swap
+        # => [dest_ptr, num_assets, note_index_keep]
+        loc_store.1
+        # => [num_assets, note_index_keep]
+
+        # inner loop over assets
+        dup neq.0
+        while.true
+            sub.1
+            # => [remaining, note_index_keep]
+
+            # load word from memory at ptr:
+            # stack needs: [ptr, 0,0,0,0, ...]
+            loc_load.1
+            # => [ptr, remaining, note_index_keep]
+
+            padw
+            # => [0,0,0,0, ptr, remaining, note_index_keep]
+            movup.4
+            # => [ptr,0,0,0,0, remaining, note_index_keep]
+
+            mem_loadw_be
+            # => [w3, w2, w1, w0, remaining, note_index_keep]
+            # expected (fungible): [faucet_id_prefix, faucet_id_suffix, 0, amount, remaining, note_index_keep]
+
+            # advance ptr += 4 (one word)
+            loc_load.1
+            add.4
+            loc_store.1
+            # => [faucet_id_prefix, faucet_id_suffix, 0/flag, amount, remaining, note_index_keep]
+
+            # fungible check: 3rd element == 0  (index 2)
+            dup.2
+            exec.account_id::is_fungible_faucet
+            eq.0
+            # => [is_fungible, faucet_id_prefix, faucet_id_suffix, flag, amount, remaining, note_index_keep]
+
+            if.true
+                # => [faucet_id_prefix, faucet_id_suffix, flag, amount, remaining, note_index_keep]
+
+                # prepare args for get_price: [prefix, suffix, amount]
+                dup.3      # amount
+                dup.2      # suffix
+                dup.2      # prefix
+                # => [prefix, suffix, amount, prefix, suffix, flag, amount, remaining, note_index_keep]
+                
+                exec.get_price_test
+                # => [is_tracked, amount_in_usdc, prefix, suffix, flag, amount, remaining, note_index_keep]
+
+                if.true
+                    # => [amount_in_usdc, prefix, suffix, flag, amount, remaining, note_index_keep]
+                    loc_load.0
+                    add
+                    loc_store.0
+                    # => [prefix, suffix, flag, amount, remaining, note_index_keep]
+                else
+                    # => [amount_in_usdc, prefix, suffix, flag, amount, remaining, note_index_keep]
+                    drop
+                    # => [prefix, suffix, flag, amount, remaining, note_index_keep]
+                end
+            end
+
+            # drop loaded asset word
+            dropw
+            # => [remaining, note_index_keep]
+
+            dup neq.0
+        end
+
+        # inner done: [0, note_index_keep]
+        drop
+        # => [note_index_keep]
+
+        dup neq.0
+    end
+
+    drop
+    # => []
+
+    loc_load.0
+    # => [amount_in_usdc]
+end
+
+
+#! Maps a computed tier index (0..3) to the required approvals threshold.
+#!
+#! Reads tier thresholds from TIER_THRESHOLD_CONFIG_SLOT:
+#!   [tier_0, tier_1, tier_2, tier_3]
+#! Then selects the correct tier threshold based on `tier_index`.
+#!
+#! Panics with ERR_INVALID_TIER_INDEX if tier_index is not in {0,1,2,3}.
+#!
+#! Inputs:  [tier_index]
+#! Outputs: [tier_threshold]
+#!
+#! Locals:
+#! 0: tier_index
+#! 1: selected tier_threshold
+@locals(2)
+proc get_tier_threshold_for_index
+    loc_store.0
+    # => []
+
+    push.TIER_THRESHOLD_CONFIG_SLOT[0..2]
+    exec.active_account::get_initial_item
+    # => [tier_3, tier_2, tier_1, tier_0]
+
+    loc_load.0
+    u32assert.err=ERR_U32
+    # => [idx, tier_3, tier_2, tier_1, tier_0]
+
+    dup eq.0
+    if.true
+        # idx == 0 => tier_0 (depth 3)
+        dup.4 loc_store.1
+    else
+        dup eq.1
+        if.true
+            # idx == 1 => tier_1 (depth 2)
+            dup.3 loc_store.1
+        else
+            dup eq.2
+            if.true
+                # idx == 2 => tier_2 (depth 1)
+                dup.2 loc_store.1
+            else
+                dup eq.3
+                assert.err=ERR_INVALID_TIER_INDEX
+                # idx == 3 => tier_3 (depth 0)
+                dup.1 loc_store.1
+            end
+        end
+    end
+
+    # drop idx
+    drop
+    # drop thresholds word
+    dropw
+    # => []
+
+    loc_load.1
+    # => [tier_threshold]
+end
+
+
+#! Updates SPENDING_TRACKER_SLOT using current epoch and the computed total_spent_amount.
+#!
+#! Inputs:  [total_spent_amount]
+#! Outputs: []
+#!
+#! Writes:
+#!   SPENDING_TRACKER_SLOT = [amount_spent_in_epoch = total_spent_amount, epoch_last_spent = current_epoch, 0, 0]
+proc set_spending_tracker
+    exec.get_current_epoch
+    # => [current_epoch, total_spent_amount]
+
+    push.0 push.0
+    # => [0, 0, current_epoch, total_spent_amount]
+
+    movup.3
+    # => [total_spent_amount, 0, 0, current_epoch]
+
+    movup.3
+    # => [current_epoch, total_spent_amount, 0, 0]
+
+    swap
+    # => [total_spent_amount, current_epoch, 0, 0]
+
+    push.SPENDING_TRACKER_SLOT[0..2]
+    # => [slot_prefix, slot_suffix, total_spent_amount, current_epoch, 0, 0]
+
+    exec.native_account::set_item
+    # => [OLD_TRACKER_WORD]
+
+    dropw
+    # => []
+end
+
+
+#! Computes required approvals for the current transaction's spending amount.
+#!
+#! Inputs:  [currently_spending_amount]
+#! Outputs: [total_spent_amount_in_epoch, threshold_tier, requires_delay]
+#!
+#! - within_epoch == 1 => total = amount_spent_in_epoch + currently_spending_amount
+#! - within_epoch == 0 => total = currently_spending_amount
+#! - tier selection based on AMOUNT_LIMITS_SLOT: [limit0, limit1, limit2, start_delay]
+#! - requires_delay = 1 if total > start_delay else 0
+#!
+#! Locals:
+#!
+#! 0: requires_delay
+#! 1: total_amount
+@locals(2)
+proc get_num_required_signatures
+    u32assert.err=ERR_U32
+    # => [currently_spending_amount]
+
+    exec.within_epoch
+    # => [is_within_epoch, currently_spending_amount]
+
+    if.true
+        # same epoch: include amount_spent_in_epoch
+        exec.get_amount_spent_in_epoch
+        # => [amount_spent_in_epoch, currently_spending_amount]
+
+        u32assert2.err=ERR_U32
+        add
+        # => [total_amount]
+    else
+        # new epoch: ignore old spent
+        # => [currently_spending_amount]
+    end
+    # => [total_amount]
+
+    loc_store.1
+    loc_load.1
+
+    # Load limits: [amount_limit0, amount_limit1, amount_limit2, amount_start_delay]
+    push.AMOUNT_LIMITS_SLOT[0..2]
+    exec.active_account::get_initial_item
+    # => [amount_start_delay, amount_limit2, amount_limit1, amount_limit0, total_amount]
+
+    # requires_delay = (total_amount > amount_start_delay)
+    dup.4
+    swap
+    u32gt
+    # => [requires_delay, limit2, limit1, limit0, total_amount]
+
+    loc_store.0
+    # => [limit2, limit1, limit0, total_amount]
+
+    # Decide tier_index based on total vs limits:
+    # stack: [limit2, limit1, limit0, total_amount]
+
+    # total < limit0 => 0
+    dup.2            # limit0
+    dup.4            # total_amount (artık depth=4)
+    swap
+
+    u32lt
+    if.true
+        dropw
+        push.0
+
+    else
+        # total < limit1 => 1
+        dup.1         # limit1
+        dup.4         # total_amount
+        swap
+        u32lt
+        if.true
+            dropw
+            push.1
+        else
+            # total < limit2 => 2
+            dup.0      # limit2
+            dup.4      # total_amount
+            swap
+            u32lt
+            if.true
+                dropw
+                push.2
+            else
+                dropw
+                push.3
+            end
+        end
+    end
+    # => [tier_index]
+
+    exec.get_tier_threshold_for_index
+    # => [threshold_tier]
+
+    loc_load.0
+    # => [requires_delay, threshold_tier]
+    
+    swap
+    # => [threshold_tier, requires_delay]
+
+    loc_load.1
+    # => [total_spent_amount_in_epoch, threshold_tier, requires_delay]
+end
+
+#! Computes spending policy for this tx and updates tracker (if spending > 0).
+#!
+#! Inputs:  []
+#! Outputs: [threshold_tier, requires_delay]
+#! Side effects:
+#!   - If spending_amount > 0: writes SPENDING_TRACKER_SLOT
+proc compute_spending_policy
+    exec.compute_spending_amount
+    # => [spending_amount]
+
+    dup eq.0
+    if.true
+        drop
+        # => []
+
+        push.0 push.0
+        # => [threshold_tier=0, requires_delay=0]
+    else
+        exec.get_num_required_signatures
+        # => [total_spent_amount_in_epoch, threshold_tier, requires_delay]
+
+        # update tracker with total
+        exec.set_spending_tracker
+        # => [threshold_tier, requires_delay]
+    end
+end
+
 
 #! Authenticate a transaction using the ECDSA signature scheme with multi-signature support.
 #!
@@ -375,10 +1202,25 @@ end
 #! - the same transaction has already been executed (replay protection).
 #!
 #! Invocation: call
-@locals(1)
+@locals(2)
 pub proc auth_tx_ecdsa_k256_keccak_multisig(salt: BeWord)
     exec.native_account::incr_nonce drop
     # => [SALT]
+
+    # --- Test block num to epoch ---
+    #exec.get_mock_block_number
+    #exec.block_num_to_epoch
+
+
+    # ------- Computing spending policy ------
+    exec.compute_spending_policy
+    # => [threshold_tier, requires_delay]
+
+    loc_store.0
+    # => [requires_delay]
+
+    loc_store.1
+    # => []
 
     # ------ Computing transaction summary ------
 
@@ -417,6 +1259,12 @@ pub proc auth_tx_ecdsa_k256_keccak_multisig(salt: BeWord)
 
     movup.5
     # => [default_threshold, num_verified_signatures, TX_SUMMARY_COMMITMENT]
+
+    loc_load.0
+    # => [spending_threshold, default_threshold, num_verified_signatures, TX_SUMMARY_COMMITMENT]
+
+    swap
+    # => [default_threshold, spending_threshold, num_verified_signatures, TX_SUMMARY_COMMITMENT]
 
     exec.compute_transaction_threshold
     # => [transaction_threshold, num_verified_signatures, TX_SUMMARY_COMMITMENT]
