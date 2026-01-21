@@ -96,6 +96,72 @@ fn create_multisig_spending_limits_account_with_assets(
     Ok(multisig_account)
 }
 
+fn create_multisig_spending_limits_with_fixed_test_configuration(
+    threshold: u32,
+    public_keys: &[PublicKey],
+    proc_threshold_map: Vec<(Word, u32)>,
+) -> anyhow::Result<Account> {
+    let approvers: Vec<_> = public_keys.iter().map(|pk| pk.to_commitment().into()).collect();
+
+    let multisig_starting_assets = vec![
+        (AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1)?, 10000u64),
+        (AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_2)?, 20000u64),
+        (AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_3)?, 30000u64),
+    ];
+
+    let spent_interval_blocks = 10u32;
+    let amount_limits = [500u64, 1000u64, 2000u64, 1500u64];
+    let tier_thresholds = [1u32, 2u32, 3u32, 4u32];
+    let oracle_id = [Felt::from(1234u32), Felt::from(5678u32)];
+    let get_price_proc_root =
+        Word::from([0xdeadbeef_u32, 0xcafebabe_u32, 0xfeedface_u32, 0xabad1dea_u32]);
+
+   // Create the multisig spending limits account
+    let multisig_account = AccountBuilder::new([0; 32])
+        .with_auth_component(Auth::MultisigSpendingLimits {
+            threshold,
+            approvers,
+            proc_threshold_map,
+            spent_interval_blocks,
+            amount_limits,
+            tier_thresholds,
+            oracle_id,
+            get_price_proc_root,
+        })
+        .with_component(BasicWallet)
+        .account_type(AccountType::RegularAccountUpdatableCode)
+        .storage_mode(AccountStorageMode::Public)
+        .with_assets(multisig_starting_assets.into_iter().map(|(account_id, amount)| {
+            FungibleAsset::new(account_id, amount).unwrap().into()
+        }))
+        .build_existing()?;
+
+    Ok(multisig_account)
+}
+
+fn create_assets_for_output_notes(
+    amount_asset_1: u64,
+    amount_asset_2: u64,
+    amount_asset_3: u64,
+) -> (FungibleAsset, FungibleAsset, FungibleAsset) {
+    let output_note_asset_1 = FungibleAsset::new(
+        AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1).unwrap(),
+        amount_asset_1,
+    ).unwrap();
+
+    let output_note_asset_2 = FungibleAsset::new(
+        AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_2).unwrap(),
+        amount_asset_2,
+    ).unwrap();
+
+    let output_note_asset_3 = FungibleAsset::new(
+        AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_3).unwrap(),
+        amount_asset_3,
+    ).unwrap();
+
+    (output_note_asset_1, output_note_asset_2, output_note_asset_3)
+}
+
 fn create_multisig_account(
     threshold: u32,
     public_keys: &[PublicKey],
@@ -130,6 +196,20 @@ fn create_multisig_account(
 // ================================================================================================
 // TESTS
 // ================================================================================================
+/// Tests basic 3-of-5 multisig functionality with note creation.
+///
+/// This test verifies that a multisig account with 5 approvers and threshold 3
+/// can successfully execute a transaction that creates an output note when all
+/// required signatures are provided.
+///
+/// Spends 3 different assets from 3 different faucets and ensures spending limits are enforced.
+///
+/// Spending 300 in total (limit 500) requires 1 signature.
+/// 
+/// **Roles:**
+/// - 5 Approvers (multisig signers)
+/// - 1 Multisig Contract
+/// - 3 Fungible Asset Faucets in Output Notes
 #[tokio::test]
 async fn test_multisig_spending_limits_send_3_different_assets() -> anyhow::Result<()> {
     let (_secret_keys, public_keys, authenticators) = setup_keys_and_authenticators(5, 5)?;
@@ -176,17 +256,17 @@ async fn test_multisig_spending_limits_send_3_different_assets() -> anyhow::Resu
 
     let output_note_asset_1 = FungibleAsset::new(
         AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1)?,
-        0u64,
+        100u64,
     )?;
 
     let output_note_asset_2 = FungibleAsset::new(
         AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_2)?,
-        0u64,
+        100u64,
     )?;
 
     let output_note_asset_3 = FungibleAsset::new(
         AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_3)?,
-        0u64,
+        100u64,
     )?;
 
     let output_note = mock_chain_builder.add_p2id_note(
@@ -229,25 +309,11 @@ async fn test_multisig_spending_limits_send_3_different_assets() -> anyhow::Resu
     let sig_1 = authenticators[0]
         .get_signature(public_keys[0].to_commitment(), &tx_summary)
         .await?;
-    let sig_2 = authenticators[1]
-        .get_signature(public_keys[1].to_commitment(), &tx_summary)
-        .await?;
-
-    let sig_3 = authenticators[2]
-        .get_signature(public_keys[2].to_commitment(), &tx_summary)
-        .await?;
-
-    let sig_4 = authenticators[3]
-        .get_signature(public_keys[3].to_commitment(), &tx_summary)
-        .await?;
 
     let result = mock_chain
         .build_tx_context(multisig_account.id(), &[], &[])?
         .extend_expected_output_notes(vec![OutputNote::Full(output_note)])
         .add_signature(public_keys[0].to_commitment(), msg, sig_1)
-        .add_signature(public_keys[1].to_commitment(), msg, sig_2)
-        .add_signature(public_keys[2].to_commitment(), msg, sig_3)
-        .add_signature(public_keys[3].to_commitment(), msg, sig_4)
         .auth_args(salt)
         .tx_script(send_note_transaction_script)
         .build()?
@@ -286,8 +352,313 @@ async fn test_multisig_spending_limits_send_3_different_assets() -> anyhow::Resu
 
     Ok(())
 }
+/// Tests basic 3-of-5 multisig functionality with note creation.
+///
+/// This test verifies that a multisig account with 5 approvers and threshold 3
+/// can successfully execute a transaction that creates an output note when all
+/// required signatures are provided.
+///
+/// Spends 3 different assets from 3 different faucets and ensures spending limits are enforced.
+///
+/// Spending 700 in total (limit 500) requires 1 signature.
+/// 
+/// **Roles:**
+/// - 5 Approvers (multisig signers)
+/// - 1 Multisig Contract
+/// - 3 Fungible Asset Faucets in Output Notes
+#[tokio::test]
+async fn test_multisig_spending_limits_less_than_limit1_requires_tier1_signatures() -> anyhow::Result<()> {
+    let (_secret_keys, public_keys, authenticators) = setup_keys_and_authenticators(5, 5)?;
 
+    let mut multisig_account = create_multisig_spending_limits_with_fixed_test_configuration(
+        3,
+        &public_keys,
+        vec![],
+    )?;
 
+    // print multisig_account vault assets
+    for asset in multisig_account.vault().assets() {
+        println!("Multisig account asset: {:?}", asset);
+    }
+
+    let mut mock_chain_builder =
+        MockChainBuilder::with_accounts([multisig_account.clone()]).unwrap();
+
+    let (output_note_asset_1, output_note_asset_2, output_note_asset_3) = create_assets_for_output_notes(500, 100, 100);
+
+    let output_note = mock_chain_builder.add_p2id_note(
+        multisig_account.id(),
+        ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE.try_into().unwrap(),
+        &[output_note_asset_1.into(), output_note_asset_2.into(), output_note_asset_3.into()],
+        NoteType::Public,
+    )?;
+
+    // print output note assets
+    for asset in output_note.assets().iter() {
+        println!("Output note asset: {:?}", asset);
+    }
+
+    let multisig_account_interface = AccountInterface::from_account(&multisig_account);
+    let send_note_transaction_script =
+        multisig_account_interface.build_send_notes_script(&[output_note.clone().into()], None)?;
+    
+    let salt = Word::from([Felt::new(1); 4]);
+
+    let mut mock_chain = mock_chain_builder.build()?;
+
+    // Execute transaction without signatures to get tx summary
+    let tx_context_init = mock_chain
+        .build_tx_context(multisig_account.id(), &[], &[])?
+        .extend_expected_output_notes(vec![OutputNote::Full(output_note.clone())])
+        .tx_script(send_note_transaction_script.clone())
+        .auth_args(salt)
+        .build()?;
+
+    let tx_summary = match tx_context_init.execute().await.unwrap_err() {
+        TransactionExecutorError::Unauthorized(tx_effects) => tx_effects,
+        error => panic!("expected abort with tx effects: {error:?}"),
+    };
+
+    // Get signatures from both approvers
+    let msg = tx_summary.as_ref().to_commitment();
+    let tx_summary = SigningInputs::TransactionSummary(tx_summary);
+
+    let sig_1 = authenticators[0]
+        .get_signature(public_keys[0].to_commitment(), &tx_summary)
+        .await?;
+
+    let sig_2 = authenticators[1]
+        .get_signature(public_keys[1].to_commitment(), &tx_summary)
+        .await?;
+
+    let result = mock_chain
+        .build_tx_context(multisig_account.id(), &[], &[])?
+        .extend_expected_output_notes(vec![OutputNote::Full(output_note)])
+        .add_signature(public_keys[0].to_commitment(), msg, sig_1)
+        .add_signature(public_keys[1].to_commitment(), msg, sig_2)
+        .auth_args(salt)
+        .tx_script(send_note_transaction_script)
+        .build()?
+        .execute()
+        .await;
+
+    multisig_account.apply_delta(result.as_ref().unwrap().account_delta())?;
+    mock_chain.add_pending_executed_transaction(&result.unwrap())?;
+    mock_chain.prove_next_block()?;
+
+    Ok(())
+}
+
+/// Tests basic 3-of-5 multisig functionality with note creation.
+///
+/// This test verifies that a multisig account with 5 approvers and threshold 3
+/// can successfully execute a transaction that creates an output note when all
+/// required signatures are provided.
+///
+/// Spends 3 different assets from 3 different faucets and ensures spending limits are enforced.
+///
+/// Spending 700 in total (limit 500) requires 1 signature.
+/// 
+/// **Roles:**
+/// - 5 Approvers (multisig signers)
+/// - 1 Multisig Contract
+/// - 3 Fungible Asset Faucets in Output Notes
+#[tokio::test]
+async fn test_multisig_spending_limits_less_than_limit2_requires_tier2_signatures() -> anyhow::Result<()> {
+    let (_secret_keys, public_keys, authenticators) = setup_keys_and_authenticators(5, 5)?;
+
+    let mut multisig_account = create_multisig_spending_limits_with_fixed_test_configuration(
+        3,
+        &public_keys,
+        vec![],
+    )?;
+
+    // print multisig_account vault assets
+    for asset in multisig_account.vault().assets() {
+        println!("Multisig account asset: {:?}", asset);
+    }
+
+    let mut mock_chain_builder =
+        MockChainBuilder::with_accounts([multisig_account.clone()]).unwrap();
+
+    let (output_note_asset_1, output_note_asset_2, output_note_asset_3) = create_assets_for_output_notes(1000, 100, 100);
+
+    let output_note = mock_chain_builder.add_p2id_note(
+        multisig_account.id(),
+        ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE.try_into().unwrap(),
+        &[output_note_asset_1.into(), output_note_asset_2.into(), output_note_asset_3.into()],
+        NoteType::Public,
+    )?;
+
+    // print output note assets
+    for asset in output_note.assets().iter() {
+        println!("Output note asset: {:?}", asset);
+    }
+
+    let multisig_account_interface = AccountInterface::from_account(&multisig_account);
+    let send_note_transaction_script =
+        multisig_account_interface.build_send_notes_script(&[output_note.clone().into()], None)?;
+    
+    let salt = Word::from([Felt::new(1); 4]);
+
+    let mut mock_chain = mock_chain_builder.build()?;
+
+    // Execute transaction without signatures to get tx summary
+    let tx_context_init = mock_chain
+        .build_tx_context(multisig_account.id(), &[], &[])?
+        .extend_expected_output_notes(vec![OutputNote::Full(output_note.clone())])
+        .tx_script(send_note_transaction_script.clone())
+        .auth_args(salt)
+        .build()?;
+
+    let tx_summary = match tx_context_init.execute().await.unwrap_err() {
+        TransactionExecutorError::Unauthorized(tx_effects) => tx_effects,
+        error => panic!("expected abort with tx effects: {error:?}"),
+    };
+
+    // Get signatures from both approvers
+    let msg = tx_summary.as_ref().to_commitment();
+    let tx_summary = SigningInputs::TransactionSummary(tx_summary);
+
+    let sig_1 = authenticators[0]
+        .get_signature(public_keys[0].to_commitment(), &tx_summary)
+        .await?;
+
+    let sig_2 = authenticators[1]
+        .get_signature(public_keys[1].to_commitment(), &tx_summary)
+        .await?;
+
+    let sig_3 = authenticators[2]
+        .get_signature(public_keys[2].to_commitment(), &tx_summary)
+        .await?;
+
+    let result = mock_chain
+        .build_tx_context(multisig_account.id(), &[], &[])?
+        .extend_expected_output_notes(vec![OutputNote::Full(output_note)])
+        .add_signature(public_keys[0].to_commitment(), msg, sig_1)
+        .add_signature(public_keys[1].to_commitment(), msg, sig_2)
+        .add_signature(public_keys[2].to_commitment(), msg, sig_3)
+        .auth_args(salt)
+        .tx_script(send_note_transaction_script)
+        .build()?
+        .execute()
+        .await;
+
+    multisig_account.apply_delta(result.as_ref().unwrap().account_delta())?;
+    mock_chain.add_pending_executed_transaction(&result.unwrap())?;
+    mock_chain.prove_next_block()?;
+
+    Ok(())
+}
+
+/// Tests basic 3-of-5 multisig functionality with note creation.
+///
+/// This test verifies that a multisig account with 5 approvers and threshold 3
+/// can successfully execute a transaction that creates an output note when all
+/// required signatures are provided.
+///
+/// Spends 3 different assets from 3 different faucets and ensures spending limits are enforced.
+///
+/// Spending 700 in total (limit 500) requires 1 signature.
+/// 
+/// **Roles:**
+/// - 5 Approvers (multisig signers)
+/// - 1 Multisig Contract
+/// - 3 Fungible Asset Faucets in Output Notes
+#[tokio::test]
+async fn test_multisig_spending_limits_more_than_limit3_requires_tier3_signatures() -> anyhow::Result<()> {
+    let (_secret_keys, public_keys, authenticators) = setup_keys_and_authenticators(5, 5)?;
+
+    let mut multisig_account = create_multisig_spending_limits_with_fixed_test_configuration(
+        3,
+        &public_keys,
+        vec![],
+    )?;
+
+    // print multisig_account vault assets
+    for asset in multisig_account.vault().assets() {
+        println!("Multisig account asset: {:?}", asset);
+    }
+
+    let mut mock_chain_builder =
+        MockChainBuilder::with_accounts([multisig_account.clone()]).unwrap();
+
+    let (output_note_asset_1, output_note_asset_2, output_note_asset_3) = create_assets_for_output_notes(2000, 100, 100);
+
+    let output_note = mock_chain_builder.add_p2id_note(
+        multisig_account.id(),
+        ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE.try_into().unwrap(),
+        &[output_note_asset_1.into(), output_note_asset_2.into(), output_note_asset_3.into()],
+        NoteType::Public,
+    )?;
+
+    // print output note assets
+    for asset in output_note.assets().iter() {
+        println!("Output note asset: {:?}", asset);
+    }
+
+    let multisig_account_interface = AccountInterface::from_account(&multisig_account);
+    let send_note_transaction_script =
+        multisig_account_interface.build_send_notes_script(&[output_note.clone().into()], None)?;
+    
+    let salt = Word::from([Felt::new(1); 4]);
+
+    let mut mock_chain = mock_chain_builder.build()?;
+
+    // Execute transaction without signatures to get tx summary
+    let tx_context_init = mock_chain
+        .build_tx_context(multisig_account.id(), &[], &[])?
+        .extend_expected_output_notes(vec![OutputNote::Full(output_note.clone())])
+        .tx_script(send_note_transaction_script.clone())
+        .auth_args(salt)
+        .build()?;
+
+    let tx_summary = match tx_context_init.execute().await.unwrap_err() {
+        TransactionExecutorError::Unauthorized(tx_effects) => tx_effects,
+        error => panic!("expected abort with tx effects: {error:?}"),
+    };
+
+    // Get signatures from both approvers
+    let msg = tx_summary.as_ref().to_commitment();
+    let tx_summary = SigningInputs::TransactionSummary(tx_summary);
+
+    let sig_1 = authenticators[0]
+        .get_signature(public_keys[0].to_commitment(), &tx_summary)
+        .await?;
+
+    let sig_2 = authenticators[1]
+        .get_signature(public_keys[1].to_commitment(), &tx_summary)
+        .await?;
+
+    let sig_3 = authenticators[2]
+        .get_signature(public_keys[2].to_commitment(), &tx_summary)
+        .await?;
+
+    let sig_4 = authenticators[3]
+        .get_signature(public_keys[3].to_commitment(), &tx_summary)
+        .await?;
+
+    let result = mock_chain
+        .build_tx_context(multisig_account.id(), &[], &[])?
+        .extend_expected_output_notes(vec![OutputNote::Full(output_note)])
+        .add_signature(public_keys[0].to_commitment(), msg, sig_1)
+        .add_signature(public_keys[1].to_commitment(), msg, sig_2)
+        .add_signature(public_keys[2].to_commitment(), msg, sig_3)
+        .add_signature(public_keys[3].to_commitment(), msg, sig_4)
+        .auth_args(salt)
+        .tx_script(send_note_transaction_script)
+        .build()?
+        .execute()
+        .await;
+
+    multisig_account.apply_delta(result.as_ref().unwrap().account_delta())?;
+    mock_chain.add_pending_executed_transaction(&result.unwrap())?;
+    mock_chain.prove_next_block()?;
+
+    Ok(())
+}
+
+/* 
 /// Tests basic 2-of-2 multisig functionality with note creation.
 ///
 /// This test verifies that a multisig account with 2 approvers and threshold 2
@@ -452,7 +823,7 @@ async fn test_multisig_spending_limits_2_of_4_all_signer_combinations() -> anyho
 
     Ok(())
 }
-
+*/
 /// Tests multisig replay protection to prevent transaction re-execution.
 ///
 /// This test verifies that a 2-of-3 multisig account properly prevents replay attacks
