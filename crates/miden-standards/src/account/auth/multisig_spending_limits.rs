@@ -58,6 +58,12 @@ static GET_PRICE_PROC_ROOT_SLOT_NAME: LazyLock<StorageSlotName> = LazyLock::new(
         .expect("storage slot name should be valid")
 });
 
+static TX_PROPOSALS_SLOT_NAME: LazyLock<StorageSlotName> = LazyLock::new(|| {
+    StorageSlotName::new("miden::standards::auth::ecdsa_k256_keccak_multisig::tx_proposals")
+        .expect("storage slot name should be valid")
+});
+
+
 
 // MULTISIG AUTHENTICATION COMPONENT
 // ================================================================================================
@@ -268,6 +274,11 @@ impl AuthMultisigSpendingLimits {
     pub fn get_price_proc_root_slot() -> &'static StorageSlotName {
         &GET_PRICE_PROC_ROOT_SLOT_NAME
     }
+
+    // Returns the [`StorageSlotName`] where the transaction proposals are stored.
+    pub fn tx_proposals_slot() -> &'static StorageSlotName {
+        &TX_PROPOSALS_SLOT_NAME
+    }
 }
 
 impl From<AuthMultisigSpendingLimits> for AccountComponent {
@@ -366,6 +377,14 @@ impl From<AuthMultisigSpendingLimits> for AccountComponent {
             AuthMultisigSpendingLimits::get_price_proc_root_slot().clone(),
             *multisig.config.get_price_proc_root(),
         ));
+
+        // Transaction proposals slot (map)
+        let tx_proposals = StorageMap::default();
+        storage_slots.push(StorageSlot::with_map(
+            AuthMultisigSpendingLimits::tx_proposals_slot().clone(),
+            tx_proposals,
+        ));
+
 
         AccountComponent::new(multisig_spending_limits_library(), storage_slots)
             .expect("Multisig auth component should satisfy the requirements of a valid account component")
