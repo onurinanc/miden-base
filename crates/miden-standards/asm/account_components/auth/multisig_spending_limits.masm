@@ -1275,14 +1275,10 @@ end
 #! Inputs:  [WORD]
 #! Outputs: [is_empty]
 proc is_empty_word
-    # stack: [WORD]
-    padw            # stack: [EMPTY_WORD, WORD]
-    eqw             # stack: [c, EMPTY_WORD, WORD]  (c=1 if equal)
-
-    # keep c, drop the two words under it
-    movdn.9         # stack: [EMPTY_WORD, WORD, c]
-    dropw           # drop EMPTY_WORD
-    dropw           # drop WORD
+    push.0.0.0.0
+    eqw
+    movdn.8
+    dropw dropw
 end
 
 
@@ -1308,10 +1304,7 @@ end
 proc is_tx_proposed(tx_summary_hash: BeWord) -> u32
     exec.get_tx_proposal       
     # => [proposal, expiration, min_cancel, is_set]
-    push.0.0.0.0
-    eqw
-    movdn.8
-    dropw dropw
+    exec.is_empty_word
     eq.0
 end
 
@@ -1414,6 +1407,55 @@ end
 proc get_pending_propose
     push.PENDING_PROPOSE_SLOT[0..2]
     exec.active_account::get_item
+end
+
+#! Inputs:  []
+#! Outputs: [WORD]
+proc get_pending_cancel
+    push.PENDING_CANCEL_SLOT[0..2]
+    exec.active_account::get_item
+end
+
+#! Inputs:  []
+#! Outputs: [WORD]
+proc get_pending_execute
+    push.PENDING_EXECUTE_SLOT[0..2]
+    exec.active_account::get_item
+end
+
+#! Asserts the given WORD is EMPTY_WORD.
+#!
+#! Inputs:  [WORD]
+#! Outputs: []
+proc assert_pending_empty
+    exec.is_empty_word
+    assert.err=ERR_PENDING_ALREADY_SET
+end
+
+#! Sets pending propose to tx_hash. Fails if already set.
+#!
+#! Inputs:  [tx_summary_hash]
+#! Outputs: []
+proc set_pending_propose
+    exec.get_pending_propose
+    # => [existing_word, new_hash]
+
+    exec.assert_pending_empty
+    # => [new_hash]
+    push.PENDING_PROPOSE_SLOT[0..2]
+    exec.native_account::set_item
+    dropw
+end
+
+#! Clears pending propose to EMPTY_WORD.
+#!
+#! Inputs:  []
+#! Outputs: []
+proc clear_pending_propose
+    push.0 push.0 push.0 push.0
+    push.PENDING_PROPOSE_SLOT[0..2]
+    exec.native_account::set_item
+    dropw
 end
 
 #! Authenticate a transaction using the ECDSA signature scheme with multi-signature support.
@@ -1579,13 +1621,39 @@ pub proc auth_tx_ecdsa_k256_keccak_multisig(salt: BeWord)
     drop
     # => [tx_hash]
 
+    dupw
+    # => [tx_hash, tx_hash]
+
     exec.enforce_tx_timelock
-    debug.stack
-    
     drop
+    debug.stack
+
+    exec.get_pending_propose
+    exec.get_pending_cancel
+    exec.get_pending_execute
+    debug.stack
+    dropw
+    dropw
+    dropw
+    debug.stack
+
+    dupw
+    # => [tx_hash, tx_hash]
+
+    exec.set_pending_propose
+    debug.stack
 
     exec.get_pending_propose
     debug.stack
+    
+    # => [tx_hash, tx_hash]
+
+    exec.clear_pending_propose
+    debug.stack
+
+    exec.get_pending_propose
+    debug.stack
+
     dropw
 
     exec.assert_new_tx
