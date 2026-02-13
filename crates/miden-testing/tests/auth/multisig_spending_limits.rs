@@ -256,17 +256,17 @@ async fn test_multisig_spending_limits_send_3_different_assets() -> anyhow::Resu
 
     let output_note_asset_1 = FungibleAsset::new(
         AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1)?,
-        100u64,
+        500u64,
     )?;
 
     let output_note_asset_2 = FungibleAsset::new(
         AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_2)?,
-        100u64,
+        500u64,
     )?;
 
     let output_note_asset_3 = FungibleAsset::new(
         AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_3)?,
-        100u64,
+        1000u64,
     )?;
 
     let output_note = mock_chain_builder.add_p2id_note(
@@ -310,10 +310,25 @@ async fn test_multisig_spending_limits_send_3_different_assets() -> anyhow::Resu
         .get_signature(public_keys[0].to_commitment(), &tx_summary)
         .await?;
 
+    let sig_2 = authenticators[1]
+        .get_signature(public_keys[1].to_commitment(), &tx_summary)
+        .await?;
+
+    let sig_3 = authenticators[2]
+        .get_signature(public_keys[2].to_commitment(), &tx_summary)
+        .await?;
+
+    let sig_4 = authenticators[3]
+        .get_signature(public_keys[3].to_commitment(), &tx_summary)
+        .await?;
+
     let result = mock_chain
         .build_tx_context(multisig_account.id(), &[], &[])?
         .extend_expected_output_notes(vec![OutputNote::Full(output_note)])
         .add_signature(public_keys[0].to_commitment(), msg, sig_1)
+        .add_signature(public_keys[1].to_commitment(), msg, sig_2)
+        .add_signature(public_keys[2].to_commitment(), msg, sig_3)
+        .add_signature(public_keys[3].to_commitment(), msg, sig_4)
         .auth_args(salt)
         .tx_script(send_note_transaction_script)
         .build()?
