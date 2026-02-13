@@ -63,6 +63,20 @@ static TX_PROPOSALS_SLOT_NAME: LazyLock<StorageSlotName> = LazyLock::new(|| {
         .expect("storage slot name should be valid")
 });
 
+static PENDING_PROPOSE_SLOT_NAME: LazyLock<StorageSlotName> = LazyLock::new(|| {
+    StorageSlotName::new("miden::standards::auth::ecdsa_k256_keccak_multisig::pending_propose")
+        .expect("storage slot name should be valid")
+});
+
+static PENDING_CANCEL_SLOT_NAME: LazyLock<StorageSlotName> = LazyLock::new(|| {
+    StorageSlotName::new("miden::standards::auth::ecdsa_k256_keccak_multisig::pending_cancel")
+        .expect("storage slot name should be valid")
+});
+
+static PENDING_EXECUTE_SLOT_NAME: LazyLock<StorageSlotName> = LazyLock::new(|| {
+    StorageSlotName::new("miden::standards::auth::ecdsa_k256_keccak_multisig::pending_execute")
+        .expect("storage slot name should be valid")
+});
 
 
 // MULTISIG AUTHENTICATION COMPONENT
@@ -279,6 +293,22 @@ impl AuthMultisigSpendingLimits {
     pub fn tx_proposals_slot() -> &'static StorageSlotName {
         &TX_PROPOSALS_SLOT_NAME
     }
+
+    // Returns the [`StorageSlotName`] where the pending propose is stored.
+    pub fn pending_propose_slot() -> &'static StorageSlotName {
+        &PENDING_PROPOSE_SLOT_NAME
+    }
+
+    // Returns the [`StorageSlotName`] where the pending cancel is stored.
+    pub fn pending_cancel_slot() -> &'static StorageSlotName {
+        &PENDING_CANCEL_SLOT_NAME
+    }
+
+    // Returns the [`StorageSlotName`] where the pending execute is stored.
+    pub fn pending_execute_slot() -> &'static StorageSlotName {
+        &PENDING_EXECUTE_SLOT_NAME
+    }
+
 }
 
 impl From<AuthMultisigSpendingLimits> for AccountComponent {
@@ -385,6 +415,23 @@ impl From<AuthMultisigSpendingLimits> for AccountComponent {
             tx_proposals,
         ));
 
+        // Pending propose slot (value: [0, 0, 0, 0] - will store propose details when a proposal is pending)
+        storage_slots.push(StorageSlot::with_value(
+            AuthMultisigSpendingLimits::pending_propose_slot().clone(),
+            Word::empty(),
+        ));
+
+        // Pending cancel slot (value: [0, 0, 0, 0] - will store cancel details when a cancellation is pending) storage_slots.push(StorageSlot::with_value( AuthMultisigSpendingLimits::pending_cancel_slot().clone(), Word::empty(), )); // Pending execute slot (value: [0, 0, 0, 0] - will store execute details when an execution is pending)
+        storage_slots.push(StorageSlot::with_value(
+            AuthMultisigSpendingLimits::pending_cancel_slot().clone(),
+            Word::empty(),
+        ));
+
+        // Pending execute slot (value: [0, 0, 0, 0] - will store execute details when an execution is pending)
+        storage_slots.push(StorageSlot::with_value(
+            AuthMultisigSpendingLimits::pending_execute_slot().clone(),
+            Word::empty(),
+        ));
 
         AccountComponent::new(multisig_spending_limits_library(), storage_slots)
             .expect("Multisig auth component should satisfy the requirements of a valid account component")
@@ -600,5 +647,29 @@ mod tests {
             .get_item(AuthMultisigSpendingLimits::get_price_proc_root_slot())
             .expect("get price proc root storage slot access failed");
         assert_eq!(get_price_proc_root_slot, get_price_proc_root);
+
+        let spending_tracker_slot = account
+            .storage()
+            .get_item(AuthMultisigSpendingLimits::spending_tracker_slot())
+            .expect("spending tracker storage slot access failed");
+        assert_eq!(spending_tracker_slot, Word::empty());
+
+        let pending_propose_slot = account
+            .storage()
+            .get_item(AuthMultisigSpendingLimits::pending_propose_slot())
+            .expect("pending propose storage slot access failed");
+        assert_eq!(pending_propose_slot, Word::empty());
+
+        let pending_cancel_slot = account
+            .storage()
+            .get_item(AuthMultisigSpendingLimits::pending_cancel_slot())
+            .expect("pending cancel storage slot access failed");
+        assert_eq!(pending_cancel_slot, Word::empty());
+
+        let pending_execute_slot = account
+            .storage()
+            .get_item(AuthMultisigSpendingLimits::pending_execute_slot())
+            .expect("pending execute storage slot access failed");
+        assert_eq!(pending_execute_slot, Word::empty());
     }
 }
