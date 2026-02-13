@@ -1509,7 +1509,88 @@ proc clear_pending_execute
     dropw
 end
 
+#! Allows any signer to propose a transaction.
+#! (Actual caching/write happens inside auth_tx finalizer.)
+#!
+#! Inputs:  [tx_summary_hash]
+#! Outputs: []
+pub proc propose_transaction
+    # early check: already proposed?
+    dupw
+    # => [tx_hash, tx_hash]
 
+    exec.is_tx_proposed
+    # => [is_proposed, tx_hash]
+
+    eq.1
+    assertz.err=ERR_TX_ALREADY_PROPOSED
+
+    exec.set_pending_propose
+    # => []
+end
+
+#! Cancels an existing proposal (final delete inside auth_tx).
+#!
+#! Inputs:  [tx_summary_hash]
+#! Outputs: []
+pub proc cancel_transaction_proposal
+    dupw
+    # => [tx_hash, tx_hash]
+
+    exec.is_tx_proposed
+    # => [is_proposed, tx_hash]
+
+    eq.1
+    assert.err=ERR_TX_NOT_PROPOSED
+
+    exec.set_pending_cancel
+    # => []
+end
+
+#! Cancels old proposal and proposes new one in the same tx.
+#!
+#! Inputs:  [old_tx_hash, new_tx_hash]
+#! Outputs: []
+pub proc cancel_and_propose_new_transaction
+    dupw
+    # => [old_tx_hash, old_tx_hash, new_tx_hash]
+    exec.is_tx_proposed
+    eq.1
+    assert.err=ERR_TX_NOT_PROPOSED
+
+    # new must NOT exist
+    swapw
+    # => [new_tx_hash, old_tx_hash]
+    
+    dupw
+    # => [new_tx_hash, new_tx_hash, old_tx_hash]
+
+    exec.is_tx_proposed
+    eq.1
+    assertz.err=ERR_TX_ALREADY_PROPOSED
+
+    swapw
+    # => [old_tx_hash, new_tx_hash]
+
+    # set pending cancel then pending propose
+    # consumes old_tx_hash
+    exec.set_pending_cancel
+    # => [new_tx_hash]
+
+    # consumes new_tx_hash   
+    exec.set_pending_propose
+    # => []
+end
+
+#! Marks that this tx intends to execute a proposed action.
+#! Enforcement happens inside auth_tx based on current TX_SUMMARY_COMMITMENT
+#! and requires_delay flag (spending-limit integrated).
+#!
+#! Inputs:  []
+#! Outputs: []
+pub proc execute_proposed_transaction
+    exec.set_pending_execute
+end
 
 
 #! Authenticate a transaction using the ECDSA signature scheme with multi-signature support.
@@ -1743,7 +1824,86 @@ pub proc auth_tx_ecdsa_k256_keccak_multisig(salt: BeWord)
     
     dropw
     debug.stack
+
+    dupw
+    # => [tx_hash, tx_hash]
+
+    exec.remove_tx_proposal
+    debug.stack
+
+    dupw
+    # => [tx_hash, tx_hash]
     
+    exec.propose_transaction
+    debug.stack
+
+    dupw
+    # => [tx_hash, tx_hash]
+
+    exec.is_tx_proposed
+    debug.stack
+
+    drop
+
+    exec.get_pending_propose
+    debug.stack
+
+    push.2
+    push.3000     # expiration_epoch
+    push.3        # min_cancel_sigs
+    exec.write_tx_proposal
+    debug.stack
+
+    dupw
+    # => [tx_hash, tx_hash]
+
+    exec.cancel_transaction_proposal
+    debug.stack
+
+    exec.get_pending_cancel
+    debug.stack
+
+    exec.clear_pending_cancel
+    exec.clear_pending_propose
+    exec.clear_pending_execute
+    debug.stack
+    
+    push.5.5.5.5
+    # => [[5, 5, 5, 5], tx_hash, tx_hash]
+
+    swapw
+
+    # => [tx_hash, [5, 5, 5, 5], tx_hash]
+    exec.cancel_and_propose_new_transaction
+    debug.stack
+
+    exec.get_pending_propose
+    debug.stack
+
+    exec.get_pending_cancel
+    debug.stack
+
+    swapw
+    dropw
+    debug.stack
+
+    exec.remove_tx_proposal
+    
+    dupw
+
+    exec.clear_pending_propose
+
+    exec.propose_transaction
+    debug.stack
+
+    dupw
+    exec.execute_proposed_transaction
+
+    exec.get_pending_execute
+    debug.stack
+    
+    dropw
+    debug.stack
 
     exec.assert_new_tx
     # => [TX_SUMMARY_COMMITMENT]
