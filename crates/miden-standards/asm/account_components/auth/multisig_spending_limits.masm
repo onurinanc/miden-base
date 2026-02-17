@@ -844,13 +844,13 @@ end
 ## Outputs: [is_tracked, amount_in_usd]
 #proc get_price
 #    push.5000
-#    #debug.stack
+#    #
 #
 #    push.0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9
-#    #debug.stack
+#    #
 #
 #    push.234234
-#    #debug.stack
+#    #
 #
 #    exec.get_oracle_price_proc_root
 #    # => [GET_MEDIAN_ROOT, faucet_id_prefix, faucet_id_suffix, amount]
@@ -861,7 +861,7 @@ end
 #    exec.tx::execute_foreign_procedure
 #    # => [amount_in_usd]
 #
-#    #debug.stack
+#    #
 #end
 
 
@@ -869,19 +869,19 @@ end
 ## Outputs: [is_tracked, amount_in_usd]
 #proc get_price_test_new
 #    push.5000
-#    #debug.stack
+#    #
 #
 #    push.0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9
-#    #debug.stack
+#    #
 #
 #    push.999999
-#    #debug.stack
+#    #
 #
 #    #push.0x714103dc2ee560002b2180056092c3
-#    ##debug.stack
+#    ##
 #
 #    push.999998
-#    #debug.stack
+#    #
 #
 #    exec.get_oracle_price_proc_root
 #    # => [GET_MEDIAN_ROOT, faucet_id_prefix, faucet_id_suffix, amount]
@@ -892,7 +892,7 @@ end
 #    exec.tx::execute_foreign_procedure
 #    # => [amount_in_usd]
 #
-#    #debug.stack
+#    #
 #end
 
 # tmp memory area for loading assets
@@ -1315,13 +1315,13 @@ end
 #! Outputs: []
 proc remove_tx_proposal(tx_summary_hash: BeWord)
     padw
-    # => [EMPTY_WORD, tx_hash]
+    # => [EMPTY_WORD, TX_HASH]
 
     swapw
-    # => [tx_hash, EMPTY_WORD]
+    # => [TX_HASH, EMPTY_WORD]
 
     push.TX_PROPOSALS_SLOT[0..2]
-    # => [TX_PROPOSALS_SLOT, tx_hash, EMPTY_WORD]
+    # => [TX_PROPOSALS_SLOT, TX_HASH, EMPTY_WORD]
 
     exec.native_account::set_map_item
     # => [OLD_VALUE, pad(12)]
@@ -1330,7 +1330,7 @@ proc remove_tx_proposal(tx_summary_hash: BeWord)
 end
 
 #! Writes proposal entry:
-#!   tx_hash -> [proposal_epoch, expiration_epoch, min_cancel_sigs, 1]
+#!   TX_HASH -> [proposal_epoch, expiration_epoch, min_cancel_sigs, 1]
 #!
 #! Stack order note:
 #!   The stored VALUE word will be read back as:
@@ -1373,7 +1373,7 @@ proc has_timelock_elapsed
     u32gt
 end
 
-#! Enforces that tx_hash is proposed AND timelock elapsed.
+#! Enforces that TX_HASH is proposed AND timelock elapsed.
 #!
 #! Inputs:  [tx_summary_hash]
 #! Outputs: [min_cancel_sigs]   (isteyen caller kullanabilsin diye)
@@ -1389,7 +1389,7 @@ proc enforce_tx_timelock
     assert.err=ERR_TX_NOT_PROPOSED
 
     exec.get_current_epoch
-    #debug.stack
+    #
     # => [current_epoch, proposal_epoch, expiration_epoch, min_cancel_sigs, is_set]
 
     exec.has_timelock_elapsed
@@ -1432,7 +1432,7 @@ proc assert_pending_empty
     assert.err=ERR_PENDING_ALREADY_SET
 end
 
-#! Sets pending propose to tx_hash. Fails if already set.
+#! Sets pending propose to TX_HASH. Fails if already set.
 #!
 #! Inputs:  [tx_summary_hash]
 #! Outputs: []
@@ -1517,10 +1517,10 @@ end
 pub proc propose_transaction
     # early check: already proposed?
     dupw
-    # => [tx_hash, tx_hash]
+    # => [TX_HASH, TX_HASH]
 
     exec.is_tx_proposed
-    # => [is_proposed, tx_hash]
+    # => [is_proposed, TX_HASH]
 
     eq.1
     assertz.err=ERR_TX_ALREADY_PROPOSED
@@ -1535,10 +1535,10 @@ end
 #! Outputs: []
 pub proc cancel_transaction_proposal
     dupw
-    # => [tx_hash, tx_hash]
+    # => [TX_HASH, TX_HASH]
 
     exec.is_tx_proposed
-    # => [is_proposed, tx_hash]
+    # => [is_proposed, TX_HASH]
 
     eq.1
     assert.err=ERR_TX_NOT_PROPOSED
@@ -1549,35 +1549,35 @@ end
 
 #! Cancels old proposal and proposes new one in the same tx.
 #!
-#! Inputs:  [old_tx_hash, new_tx_hash]
+#! Inputs:  [old_TX_HASH, new_TX_HASH]
 #! Outputs: []
 pub proc cancel_and_propose_new_transaction
     dupw
-    # => [old_tx_hash, old_tx_hash, new_tx_hash]
+    # => [old_TX_HASH, old_TX_HASH, new_TX_HASH]
     exec.is_tx_proposed
     eq.1
     assert.err=ERR_TX_NOT_PROPOSED
 
     # new must NOT exist
     swapw
-    # => [new_tx_hash, old_tx_hash]
+    # => [new_TX_HASH, old_TX_HASH]
     
     dupw
-    # => [new_tx_hash, new_tx_hash, old_tx_hash]
+    # => [new_TX_HASH, new_TX_HASH, old_TX_HASH]
 
     exec.is_tx_proposed
     eq.1
     assertz.err=ERR_TX_ALREADY_PROPOSED
 
     swapw
-    # => [old_tx_hash, new_tx_hash]
+    # => [old_TX_HASH, new_TX_HASH]
 
     # set pending cancel then pending propose
-    # consumes old_tx_hash
+    # consumes old_TX_HASH
     exec.set_pending_cancel
-    # => [new_tx_hash]
+    # => [new_TX_HASH]
 
-    # consumes new_tx_hash   
+    # consumes new_TX_HASH   
     exec.set_pending_propose
     # => []
 end
@@ -1606,44 +1606,144 @@ end
 #! 1: requires_delay
 @locals(2)
 proc finalize_timelock_proposals
+    loc_store.0
+    # => [requires_delay, TX_HASH]
+
+    loc_store.1
+    # => [TX_HASH]
+
     # ------------------------------------------------------------
-    # Execute Enforcement 
+    # Execute Finalizer 
     # Only if pending_execute set [0, 0, 0, 1] 
     # AND the transaction requires_delay.
     # ------------------------------------------------------------
 
-    loc_store.0
-    # => [requires_delay, tx_hash]
-
-    loc_store.1
-    # => [tx_hash]
-    
     exec.get_pending_execute
-    # => [is_pending_word, tx_hash]
-    
+    # => [pending_execute_word, TX_HASH]
+
     exec.is_empty_word
-    # => [is_empty_word, tx_hash]
+    # => [is_empty_word, TX_HASH]
 
     if.false
         loc_load.1 
-        # => [requires_delay, tx_hash]
+        # => [requires_delay, TX_HASH]
 
         eq.1
-        # [is_equal, tx_hash]
-        if.true
-            debug.stack
-            dupw
-            exec.enforce_tx_timelock
-            drop
-            debug.stack
+        # [is_equal, TX_HASH]
 
-            # proposal’ı yürütüldü sayıp silmek istiyorsan:
+        if.true
+            dupw
+            # => [TX_HASH, TX_HASH]
+
+            exec.enforce_tx_timelock
+            # => [min_cancel_signatures, TX_HASH]
+
+            drop
+            # => [TX_HASH]
+
+            dupw
+            # => [TX_HASH, TX_HASH]
+
             exec.remove_tx_proposal
+            # => [TX_HASH]
         end
     end
+
     exec.clear_pending_execute
+    # => [TX_HASH]
 
+    # ------------------------------------------------------------
+    # Cancel Finalize requires num_verified >= stored min_cancel_sigs
+    # ------------------------------------------------------------
+    exec.get_pending_cancel
+    # => [CANCEL_HASH, TX_HASH]
 
+    exec.is_empty_word
+    # => [is_empty, TX_HASH]
+
+    if.false
+        exec.get_pending_cancel
+        # => [CANCEL_HASH, TX_HASH]
+
+        dupw
+        # => [CANCEL_HASH, CANCEL_HASH, TX_HASH]
+
+        exec.get_tx_proposal
+        # => [proposal_epoch, expiration_epoch, min_cancel_sigs, is_set, CANCEL_HASH, TX_HASH]
+
+        dup.3 eq.1
+        assert.err=ERR_TX_NOT_PROPOSED
+
+        # num_verified_signatures >= min_cancel_sigs
+        loc_load.0
+        # => [num_verified_signatures, proposal_epoch, expiration_epoch, min_cancel_sigs, is_set, CANCEL_HASH, TX_HASH]
+
+        movup.3
+        # => [min_cancel_sigs, num_verified_signatures, proposal_epoch, expiration_epoch, is_set, CANCEL_HASH, TX_HASH]
+
+        u32assert2.err=ERR_U32
+        u32lt
+        assertz.err=ERR_CANCEL_INSUFFICIENT_SIGNATURES
+
+        drop drop drop
+        # => [CANCEL_HASH, TX_HASH]
+
+        exec.remove_tx_proposal
+        # => [TX_HASH]
+    end
+
+    exec.clear_pending_cancel
+    # => [TX_HASH]
+
+    # ------------------------------------------------------------
+    # Propose Finalize
+    # ------------------------------------------------------------
+
+    exec.get_pending_propose
+    # => [PROPOSAL_HASH, TX_HASH]
+
+    exec.is_empty_word
+    # => [is_empty, TX_HASH]
+
+    if.false
+        exec.get_pending_propose
+        # => [PROPOSAL_HASH, TX_HASH]
+
+        dupw
+        # => [PROPOSAL_HASH, PROPOSAL_HASH, TX_HASH]
+
+        exec.is_tx_proposed
+        # => [is_proposed, PROPOSAL_HASH, TX_HASH]
+
+        eq.1
+        assertz.err=ERR_TX_ALREADY_PROPOSED
+
+        loc_load.0
+        # => [num_verified_signatures, PROPOSAL_HASH, TX_HASH]
+
+        dup
+        # => [num_verified_signatures, num_verified_signatures, PROPOSAL_HASH, TX_HASH]
+
+        u32assert.err=ERR_U32
+        eq.0
+        assertz.err=ERR_PROPOSE_ZERO_SIGNATURES
+        # => [num_verified_signatures, PROPOSAL_HASH, TX_HASH]
+
+        exec.get_current_epoch
+        # => [proposal_epoch, num_verified_signatures, PROPOSAL_HASH, TX_HASH]
+
+        push.0
+        # => [expiration_epoch, proposal_epoch, num_verified_signatures, PROPOSAL_HASH, TX_HASH]
+
+        movup.2
+        # => [num_verified_signatures, expiration_epoch, proposal_epoch, PROPOSAL_HASH, TX_HASH]
+
+        exec.write_tx_proposal
+        # => [tx_hash]
+    end
+
+    exec.clear_pending_propose
+    # => [TX_HASH]
 end
 
 
@@ -1759,241 +1859,17 @@ pub proc auth_tx_ecdsa_k256_keccak_multisig(salt: BeWord)
         push.0 assert.err="insufficient number of signatures"
     end
 
-    # ------ Writing executed transaction MSG to map ------
-    
-    dupw
-    ##debug.stack 
-    # => [tx_hash, tx_hash]
-    push.4.3.2.1
-    swapw
-    # => [tx_hash, value_word, tx_hash]
-
-    push.TX_PROPOSALS_SLOT[0..2]
-    ##debug.stack
-    # => [slot_prefix, slot_suffix, tx_hash, value_word, tx_hash]
-    exec.native_account::set_map_item
-    dropw
-    ##debug.stack
-    # => [tx_hash]
-
-    dupw
-    # => [tx_hash, tx_hash]
-
-    exec.is_tx_proposed
-    ##debug.stack
-    # => [is_proposed, tx_hash]
-
-    drop
-    dupw
-    # => [tx_hash, tx_hash]
-
-    exec.remove_tx_proposal
-    # => [tx_hash]
-
-    dupw
-    # => [tx_hash, tx_hash]
-    exec.is_tx_proposed
-    # => [is_proposed, tx_hash]
-    drop
-    ##debug.stack
-
-    dupw
-    # => [tx_hash, tx_hash]
-    #debug.stack
-
-    push.2
-    push.3000     # expiration_epoch
-    push.3        # min_cancel_sigs
-    exec.write_tx_proposal
-
-    dupw
-    # => [tx_hash, tx_hash]
-
-    exec.is_tx_proposed
-    #debug.stack
-
-    drop
-    # => [tx_hash]
-
-    dupw
-    # => [tx_hash, tx_hash]
-
-    exec.enforce_tx_timelock
-    drop
-    #debug.stack
-
-    exec.get_pending_propose
-    exec.get_pending_cancel
-    exec.get_pending_execute
-    #debug.stack
-    dropw
-    dropw
-    dropw
-    #debug.stack
-
-    dupw
-    # => [tx_hash, tx_hash]
-
-    exec.set_pending_propose
-    #debug.stack
-
-    exec.get_pending_propose
-    #debug.stack
-    
-    # => [tx_hash, tx_hash]
-
-    exec.clear_pending_propose
-    #debug.stack
-
-    exec.get_pending_propose
-    #debug.stack
-
-    dropw
-    #debug.stack
-
-    exec.set_pending_cancel
-    #debug.stack
-
-    exec.get_pending_cancel
-    #debug.stack
-
-    exec.clear_pending_cancel
-    #debug.stack
-
-    exec.get_pending_cancel
-    #debug.stack
-
-    dropw
-    dropw
-    #debug.stack
-
-    exec.set_pending_execute
-    #debug.stack
-
-    exec.get_pending_execute
-    #debug.stack
-
-    exec.clear_pending_execute
-    #debug.stack
-    dropw
-
-
-    exec.get_pending_execute
-    #debug.stack
-    
-    dropw
-    #debug.stack
-
-    dupw
-    # => [tx_hash, tx_hash]
-
-    exec.remove_tx_proposal
-    #debug.stack
-
-    dupw
-    # => [tx_hash, tx_hash]
-    
-    exec.propose_transaction
-    #debug.stack
-
-    dupw
-    # => [tx_hash, tx_hash]
-
-    exec.is_tx_proposed
-    #debug.stack
-
-    drop
-
-    exec.get_pending_propose
-    #debug.stack
-
-    push.2
-    push.3000     # expiration_epoch
-    push.3        # min_cancel_sigs
-    exec.write_tx_proposal
-    #debug.stack
-
-    dupw
-    # => [tx_hash, tx_hash]
-
-    exec.cancel_transaction_proposal
-    #debug.stack
-
-    exec.get_pending_cancel
-    #debug.stack
-
-    exec.clear_pending_cancel
-    exec.clear_pending_propose
-    exec.clear_pending_execute
-    #debug.stack
-    
-    push.5.5.5.5
-    # => [[5, 5, 5, 5], tx_hash, tx_hash]
-
-    swapw
-
-    # => [tx_hash, [5, 5, 5, 5], tx_hash]
-    exec.cancel_and_propose_new_transaction
-    #debug.stack
-
-    exec.get_pending_propose
-    #debug.stack
-
-    exec.get_pending_cancel
-    #debug.stack
-
-    swapw
-    dropw
-    #debug.stack
-
-    exec.remove_tx_proposal
-    
-    dupw
-
-    exec.clear_pending_propose
-
-    exec.propose_transaction
-    #debug.stack
-
-    dupw
-    exec.execute_proposed_transaction
-
-    exec.get_pending_execute
-    #debug.stack
-    
-    dropw
-    #debug.stack
-
-    exec.remove_tx_proposal
-    exec.clear_pending_cancel
-    exec.clear_pending_execute
-    exec.clear_pending_propose
-
-    # => [tx_hash]
-
-    dupw
-    # => [tx_hash, tx_hash]
-    
-    # Test to finalize execute proposal
-    # Write a new proposal
-    # Execute the new proposal
-    # Calculate an example that requires delay
-    #debug.stack
-    push.2
-    push.3000     # expiration_epoch
-    push.3        # min_cancel_sigs
-    exec.write_tx_proposal
-
-    exec.execute_proposed_transaction
-
     # ------ Finalize Tx Proposals ------
+
     loc_load.1
-    # => [requires_delay, tx_hash]
+    # => [requires_delay, TX_HASH]
 
     loc_load.2
-    # => [num_verified_signatures, requires_delay, tx_hash]
+    # => [num_verified_signatures, requires_delay, TX_HASH]
 
     exec.finalize_timelock_proposals
+
+    # ------ Writing executed transaction MSG to map ------
 
     exec.assert_new_tx
     # => [TX_SUMMARY_COMMITMENT]
