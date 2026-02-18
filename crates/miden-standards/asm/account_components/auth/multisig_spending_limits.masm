@@ -818,82 +818,19 @@ proc get_price_test
     push.1
 end
 
-## ORACLE_CONFIG_SLOT = [oracle_id_prefix, oracle_id_suffix, 0, 0]
-## return stack: [oracle_id_prefix, oracle_id_suffix]
-#proc get_oracle_id
-#    push.ORACLE_CONFIG_SLOT[0..2]
-#    exec.active_account::get_initial_item
-#    # => [0, 0, oracle_id_suffix, oracle_id_prefix]
-#    
-#    drop drop
-#    # => [oracle_id_suffix, oracle_id_prefix]
-#    
-#    swap
-#    # => [oracle_id_prefix, oracle_id_suffix]
-#end
-#
-## GET_PRICE_PROC_ROOT_SLOT = [root_w3, root_w2, root_w1, root_w0]
-#proc get_oracle_price_proc_root
-#    push.GET_PRICE_PROC_ROOT_SLOT[0..2]
-#    exec.active_account::get_initial_item
-#    # => [root_w3, root_w2, root_w1, root_w0]
-#end
-#
-#
-## Inputs:  [faucet_id_prefix, faucet_id_suffix, amount]
-## Outputs: [is_tracked, amount_in_usd]
-#proc get_price
-#    push.5000
-#    #
-#
-#    push.0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9
-#    #
-#
-#    push.234234
-#    #
-#
-#    exec.get_oracle_price_proc_root
-#    # => [GET_MEDIAN_ROOT, faucet_id_prefix, faucet_id_suffix, amount]
-#
-#    exec.get_oracle_id
-#    # => [oracle_id_prefix, oracle_id_suffix, GET_MEDIAN_ROOT, PAIR]
-#
-#    exec.tx::execute_foreign_procedure
-#    # => [amount_in_usd]
-#
-#    #
-#end
 
+# Inputs:  [faucet_id_prefix, faucet_id_suffix, amount]
+# Outputs: [is_tracked, amount_in_usd]
+proc get_price_test_new
+    exec.get_oracle_price_proc_root
+    # => [GET_PRICE_ROOT_HASH, faucet_id_prefix, faucet_id_suffix, amount]
 
-## Inputs:  [faucet_id_prefix, faucet_id_suffix, amount]
-## Outputs: [is_tracked, amount_in_usd]
-#proc get_price_test_new
-#    push.5000
-#    #
-#
-#    push.0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9
-#    #
-#
-#    push.999999
-#    #
-#
-#    #push.0x714103dc2ee560002b2180056092c3
-#    ##
-#
-#    push.999998
-#    #
-#
-#    exec.get_oracle_price_proc_root
-#    # => [GET_MEDIAN_ROOT, faucet_id_prefix, faucet_id_suffix, amount]
-#
-#    exec.get_oracle_id
-#    # => [oracle_id_prefix, oracle_id_suffix, GET_MEDIAN_ROOT, PAIR]
-#
-#    exec.tx::execute_foreign_procedure
-#    # => [amount_in_usd]
-#
-#    #
-#end
+    exec.get_oracle_id
+    # => [oracle_id_prefix, oracle_id_suffix, GET_PRICE_ROOT_HASH, faucet_id_prefix, faucet_id_suffix, amount]
+
+    exec.tx::execute_foreign_procedure
+    # => [is_tracked, median_price_in_usd]
+end
 
 # tmp memory area for loading assets
 # NOTE: must be multiple of 4 for mem_loadw_be
@@ -1308,6 +1245,18 @@ proc is_tx_proposed(tx_summary_hash: BeWord) -> u32
     eq.0
 end
 
+proc get_oracle_price_proc_root
+    push.GET_PRICE_PROC_ROOT_SLOT[0..2]
+    exec.active_account::get_item   # [root_w3, root_w2, root_w1, root_w0]
+end
+
+#! Inputs: []
+#! Outputs: [oracle_id_prefix, oracle_id_suffix]
+proc get_oracle_id
+    push.ORACLE_CONFIG_SLOT[0..2]
+    exec.active_account::get_item
+    drop drop
+end
 
 #! Deletes proposal entry by setting value to EMPTY_WORD.
 #!
@@ -1870,6 +1819,15 @@ pub proc auth_tx_ecdsa_k256_keccak_multisig(salt: BeWord)
     exec.finalize_timelock_proposals
 
     # ------ Writing executed transaction MSG to map ------
+    push.0xc6bd0b17ca2ed631c62c82abe48524f420ad8ba9fd04ebaf9cf724c56382528e
+    debug.stack
+    dropw
+
+    exec.get_oracle_price_proc_root
+    exec.get_oracle_id
+    debug.stack
+
+    dropw drop drop
 
     exec.assert_new_tx
     # => [TX_SUMMARY_COMMITMENT]

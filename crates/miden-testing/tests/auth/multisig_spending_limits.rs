@@ -33,6 +33,28 @@ use rand_chacha::ChaCha20Rng;
 
 type MultisigTestSetup = (Vec<AuthSecretKey>, Vec<PublicKey>, Vec<BasicAuthenticator>);
 
+const TEST_ORACLE_ID_PREFIX: u64 = 15_240_030_242_886_579_968;
+const TEST_ORACLE_ID_SUFFIX: u64 = 5_177_303_881_306_160_384;
+const TEST_GET_PRICE_PROC_ROOT: [u64; 4] = [
+    3_591_109_198_379_466_182,
+    17_592_333_261_592_472_774,
+    12_676_231_063_682_133_280,
+    10_255_402_666_496_948_124,
+];
+
+fn test_oracle_id() -> [Felt; 2] {
+    [Felt::new(TEST_ORACLE_ID_SUFFIX), Felt::new(TEST_ORACLE_ID_PREFIX)]
+}
+
+fn test_get_price_proc_root() -> Word {
+    Word::from([
+        Felt::new(TEST_GET_PRICE_PROC_ROOT[0]),
+        Felt::new(TEST_GET_PRICE_PROC_ROOT[1]),
+        Felt::new(TEST_GET_PRICE_PROC_ROOT[2]),
+        Felt::new(TEST_GET_PRICE_PROC_ROOT[3]),
+    ])
+}
+
 /// Sets up secret keys, public keys, and authenticators for multisig testing
 fn setup_keys_and_authenticators(
     num_approvers: usize,
@@ -112,9 +134,8 @@ fn create_multisig_spending_limits_with_fixed_test_configuration(
     let spent_interval_blocks = 10u32;
     let amount_limits = [500u64, 1000u64, 2000u64, 1500u64];
     let tier_thresholds = [1u32, 2u32, 3u32, 4u32];
-    let oracle_id = [Felt::from(1234u32), Felt::from(5678u32)];
-    let get_price_proc_root =
-        Word::from([0xdeadbeef_u32, 0xcafebabe_u32, 0xfeedface_u32, 0xabad1dea_u32]);
+    let oracle_id = test_oracle_id();
+    let get_price_proc_root = test_get_price_proc_root();
 
    // Create the multisig spending limits account
     let multisig_account = AccountBuilder::new([0; 32])
@@ -171,9 +192,8 @@ fn create_multisig_account(
     let spent_interval_blocks = 10u32;
     let amount_limits = [500u64, 1000u64, 2000u64, 1500u64];
     let tier_thresholds = [1u32, 2u32, 3u32, 4u32];
-    let oracle_id = [Felt::from(1234u32), Felt::from(5678u32)];
-    let get_price_proc_root =
-        Word::from([0xdeadbeef_u32, 0xcafebabe_u32, 0xfeedface_u32, 0xabad1dea_u32]);
+    let oracle_id = test_oracle_id();
+    let get_price_proc_root = test_get_price_proc_root();
 
     let assets = vec![FungibleAsset::new(
         AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET)?,
@@ -223,9 +243,8 @@ async fn test_multisig_spending_limits_send_3_different_assets() -> anyhow::Resu
     let spent_interval_blocks = 10u32;
     let amount_limits = [500u64, 1000u64, 2000u64, 1500u64];
     let tier_thresholds = [1u32, 2u32, 3u32, 4u32];
-    let oracle_id = [Felt::from(1234u32), Felt::from(5678u32)];
-    let get_price_proc_root =
-        Word::from([0xdeadbeef_u32, 0xcafebabe_u32, 0xfeedface_u32, 0xabad1dea_u32]);
+    let oracle_id = test_oracle_id();
+    let get_price_proc_root = test_get_price_proc_root();
 
 
     let mut multisig_account =
